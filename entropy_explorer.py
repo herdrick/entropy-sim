@@ -207,7 +207,7 @@ def s_label(s: float) -> str:
 # RENDER HELPERS
 # ─────────────────────────────────────────────────────────────────
 
-def render_histogram(est: EntropyEstimator, color: str, rows: int = 8) -> Text:
+def render_histogram(est: EntropyEstimator, color: str, rows: int = 6) -> Text:
     """P(x) per bin (Laplace-smoothed, Σ=1).
     1 char per bin = 20 chars wide. 6-char y-axis. Total = 26 chars/row."""
     probs = est.hist_probs()         # smoothed, sums to 1
@@ -260,12 +260,6 @@ def render_histogram(est: EntropyEstimator, color: str, rows: int = 8) -> Text:
     text.append(" " * (N_BINS - mid - 4), style="dim")
     text.append("1.0\n", style="dim")
 
-    # Compact p-value summary
-    min_p = min(probs)
-    text.append("      ", style="")
-    text.append(f"min={min_p:.3f} ", style="dim")
-    text.append(f"1/N={uniform_p:.3f} ", style="yellow dim")
-    text.append(f"max={max_p:.3f}", style="dim")
     return text
 
 
@@ -429,19 +423,28 @@ def make_display(state: AppState) -> Layout:
     layout["header"].update(Panel(Align(hdr, "center"), box=box.HEAVY))
 
     # ── HISTOGRAM PANEL ───────────────────────────────────────────
-    # Keep content height stable whether hidden or revealed.
-    # Revealed description lives in the meter panel (below), not here.
-    hp = Text()
-    hp.append(f"\n  {oracle['name']}\n", style=f"bold {col}")
+    # Title + subtitle live in the panel border (zero content rows).
+    # Content = pure histogram so bars are never clipped.
+    _probs = est.hist_probs()
+    _max_p = max(_probs)
+    _min_p = min(_probs)
+    _uni_p = 1.0 / N_BINS
+
     if state.revealed:
         rname, _ = oracle["reveal"]
-        hp.append(f"  ✦ {rname}\n\n", style=f"{col} italic")
+        hist_title = f"[bold {col}]{oracle['name']}[/]  [dim italic]✦ {rname}[/]"
     else:
-        hp.append(f"  \"{oracle['hint']}\"\n\n", style="dim italic")
+        hist_title = (f"[bold {col}]{oracle['name']}[/]  "
+                      f"[dim italic]\"{oracle['hint']}\"[/]")
+
+    hist_sub = (f"[dim]min={_min_p:.3f}  [/]"
+                f"[yellow]1/N={_uni_p:.3f}[/]"
+                f"[dim]  max={_max_p:.3f}  Σp=1[/]")
+
+    hp = Text()
     hp.append_text(render_histogram(est, col))
     layout["hist_panel"].update(
-        Panel(hp, title="[dim]P(x) — probability per bin  (Σ = 1)[/]",
-              box=box.ROUNDED))
+        Panel(hp, title=hist_title, subtitle=hist_sub, box=box.ROUNDED))
 
     # ── ENTROPY METER ─────────────────────────────────────────────
     mp = Text()
