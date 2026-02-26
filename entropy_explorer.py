@@ -207,65 +207,65 @@ def s_label(s: float) -> str:
 # RENDER HELPERS
 # ─────────────────────────────────────────────────────────────────
 
-def render_histogram(est: EntropyEstimator, color: str,
-                     rows: int = 9, cols: int = 40) -> Text:
-    """Vertical bar chart showing true P(x) probabilities (sum to 1).
-    Y-axis labels show probability scale. Dashed line = 1/N (uniform ref)."""
+def render_histogram(est: EntropyEstimator, color: str, rows: int = 8) -> Text:
+    """P(x) per bin (Laplace-smoothed, Σ=1).
+    1 char per bin = 20 chars wide. 6-char y-axis. Total = 26 chars/row."""
     probs = est.hist_probs()         # smoothed, sums to 1
     max_p = max(probs)
-    uniform_p = 1.0 / N_BINS        # = 0.05 for N=20
+    uniform_p = 1.0 / N_BINS        # = 0.05 for N_BINS=20
 
-    bin_w = max(1, cols // N_BINS)
-
-    # Which row (1=bottom … rows=top) straddles the uniform reference line?
+    # Which display row (1=bottom, rows=top) straddles the uniform level?
     uniform_row = max(1, min(rows, math.ceil(uniform_p / max_p * rows)))
 
-    YPAD = 7   # chars reserved for y-axis label column
     text = Text()
-
     for row in range(rows, 0, -1):
-        p_hi = (row / rows) * max_p
-        p_lo = ((row - 1) / rows) * max_p
+        frac_hi = row / rows
+        frac_lo = (row - 1) / rows
         is_ref = (row == uniform_row)
 
-        # Y-axis label
+        # 6-char y-axis column (always exactly 6 chars)
         if row == rows:
-            text.append(f"{max_p:.3f} ", style="dim")  # 7 chars
+            text.append(f"{max_p:.3f}", style="dim")   # 5 chars
+            text.append("▕", style="dim")              # 1 char
         elif is_ref:
-            text.append(" 1/N ═ ", style="bold dim yellow")
+            text.append(" 1/N ", style="yellow dim")   # 5 chars
+            text.append("╞", style="yellow dim")       # 1 char
         else:
-            text.append(" " * YPAD)
+            text.append("     ", style="")             # 5 chars
+            text.append("│", style="dim")              # 1 char
 
+        # 1 char per bin = N_BINS chars
         for p in probs:
-            if p >= p_hi:
-                text.append("█" * bin_w, style=color)
-            elif p > p_lo:
-                partial = (p - p_lo) / (p_hi - p_lo)
+            frac = p / max_p
+            if frac >= frac_hi:
+                text.append("█", style=color)
+            elif frac > frac_lo:
+                partial = (frac - frac_lo) / (frac_hi - frac_lo)
                 ch = "▆" if partial > 0.75 else "▄" if partial > 0.50 else "▂"
-                text.append(ch * bin_w, style=color + " dim")
+                text.append(ch, style=color + " dim")
             elif is_ref:
-                # draw uniform reference line through empty space
-                text.append("╌" * bin_w, style="dim yellow")
+                text.append("╌", style="yellow dim")
             else:
-                text.append(" " * bin_w)
+                text.append(" ")
         text.append("\n")
 
-    # Bottom axis + x labels
-    w = N_BINS * bin_w
-    text.append(" " * YPAD + "─" * w + "\n", style="dim")
-    mid = w // 2
-    text.append(f"{' ' * YPAD}0{' ' * (mid - 2)}0.5{' ' * (w - mid - 4)}1.0\n",
-                style="dim")
+    # Bottom axis (6-char y-pad + N_BINS dashes)
+    text.append("     └", style="dim")
+    text.append("─" * N_BINS + "\n", style="dim")
+    # x-axis labels at 0, 0.5, 1.0
+    mid = N_BINS // 2
+    text.append("      0", style="dim")
+    text.append(" " * (mid - 2), style="dim")
+    text.append("0.5", style="dim")
+    text.append(" " * (N_BINS - mid - 4), style="dim")
+    text.append("1.0\n", style="dim")
 
-    # Summary line: key probability landmarks
+    # Compact p-value summary
     min_p = min(probs)
-    text.append(
-        f"\n{' ' * YPAD}"
-        f"p min={min_p:.3f}  "
-        f"[yellow]1/N={uniform_p:.3f}[/yellow]  "
-        f"max={max_p:.3f}",
-        style="dim",
-    )
+    text.append("      ", style="")
+    text.append(f"min={min_p:.3f} ", style="dim")
+    text.append(f"1/N={uniform_p:.3f} ", style="yellow dim")
+    text.append(f"max={max_p:.3f}", style="dim")
     return text
 
 
@@ -429,25 +429,16 @@ def make_display(state: AppState) -> Layout:
     layout["header"].update(Panel(Align(hdr, "center"), box=box.HEAVY))
 
     # ── HISTOGRAM PANEL ───────────────────────────────────────────
+    # Keep content height stable whether hidden or revealed.
+    # Revealed description lives in the meter panel (below), not here.
     hp = Text()
     hp.append(f"\n  {oracle['name']}\n", style=f"bold {col}")
     if state.revealed:
-        rname, rnote = oracle["reveal"]
+        rname, _ = oracle["reveal"]
         hp.append(f"  ✦ {rname}\n\n", style=f"{col} italic")
-        # word-wrap note at ~38 chars
-        words = rnote.split()
-        line, out = "  ", []
-        for w in words:
-            if len(line) + len(w) + 1 > 40:
-                out.append(line)
-                line = "  " + w + " "
-            else:
-                line += w + " "
-        out.append(line)
-        hp.append("\n".join(out) + "\n\n", style="dim")
     else:
         hp.append(f"  \"{oracle['hint']}\"\n\n", style="dim italic")
-    hp.append_text(render_histogram(est, col, rows=9, cols=40))
+    hp.append_text(render_histogram(est, col))
     layout["hist_panel"].update(
         Panel(hp, title="[dim]P(x) — probability per bin  (Σ = 1)[/]",
               box=box.ROUNDED))
@@ -476,13 +467,27 @@ def make_display(state: AppState) -> Layout:
         desc = "Near-maximum entropy — pure chaos!"
     mp.append(f"  {desc}\n", style="italic dim")
 
-    if avg_s is not None:
-        mp.append(f"\n  Avg surprisal : {avg_s:.2f} bits/event\n", style="dim")
-    mp.append(f"  Total info    : {total_b:.0f} bits received\n", style="dim")
-
-    conf_filled = int(conf * 12)
-    conf_bar = "█" * conf_filled + "░" * (12 - conf_filled)
-    mp.append(f"  Estimate conf : [{conf_bar}] {int(conf*100)}%", style="dim")
+    if state.revealed:
+        _, rnote = oracle["reveal"]
+        mp.append("\n", style="")
+        # word-wrap at ~38 chars
+        words = rnote.split()
+        line, out = "  ", []
+        for w in words:
+            if len(line) + len(w) + 1 > 40:
+                out.append(line)
+                line = "  " + w + " "
+            else:
+                line += w + " "
+        out.append(line)
+        mp.append("\n".join(out) + "\n", style="dim italic")
+    else:
+        if avg_s is not None:
+            mp.append(f"\n  Avg surprisal : {avg_s:.2f} bits/event\n", style="dim")
+        mp.append(f"  Total info    : {total_b:.0f} bits received\n", style="dim")
+        conf_filled = int(conf * 12)
+        conf_bar = "█" * conf_filled + "░" * (12 - conf_filled)
+        mp.append(f"  Estimate conf : [{conf_bar}] {int(conf*100)}%", style="dim")
 
     layout["meter_panel"].update(
         Panel(mp, title="[dim]Entropy Meter[/]", box=box.ROUNDED))
