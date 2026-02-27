@@ -72,7 +72,7 @@ p_rug_source = ColumnDataSource(dict(x=[], y=[]))
 
 # ── Figures ──────────────────────────────────────────────────────────────────
 
-TOOLS = "pan,wheel_zoom,reset,save"
+TOOLS = "pan,xwheel_zoom,xbox_zoom,reset,save"
 PLOT_WIDTH = 900
 
 # Top rug figure
@@ -90,10 +90,10 @@ rug_fig.segment(
     line_color="#e07b39", line_width=1,
 )
 
-# P distribution figure
+# P distribution figure — shares x_range with rug so zoom is linked
 p_fig = figure(
     width=PLOT_WIDTH, height=380,
-    x_range=(X_MIN, X_MAX),
+    x_range=rug_fig.x_range,
     tools=TOOLS, toolbar_location="right",
     title=f"P  |  Entropy = {entropy_bits(probs0):.4f} bits",
 )
