@@ -66,9 +66,6 @@ p_source = ColumnDataSource(dict(
     color=bar_colors(len(probs0)),
 ))
 
-# Rug overlay on P figure (events shown after "make distribution from events")
-p_rug_source = ColumnDataSource(dict(x=[], y=[]))
-
 # ── Figures ──────────────────────────────────────────────────────────────────
 
 TOOLS = "pan,xwheel_zoom,xbox_zoom,reset,save"
@@ -86,7 +83,7 @@ rug_fig.ygrid.visible = False
 rug_fig.segment(
     x0="x", y0=-0.4, x1="x", y1=0.4,
     source=rug_source,
-    line_color="#e07b39", line_width=1,
+    line_color="#888888", line_width=1, alpha=0.25,
 )
 
 # P distribution figure — shares x_range with rug so zoom is linked
@@ -101,18 +98,12 @@ p_fig.quad(
     source=p_source,
     fill_color="color", line_color="white", alpha=0.8,
 )
-# Rug overlay inside P fig (shows events after "make distribution")
-p_fig.segment(
-    x0="x", y0=0, x1="x", y1="y",
-    source=p_rug_source,
-    line_color="#e07b39", line_width=1, alpha=0.6,
-)
 p_fig.xaxis.axis_label = "Value"
 p_fig.yaxis.axis_label = "Probability"
 
 # ── Update helpers ────────────────────────────────────────────────────────────
 
-def refresh_p(event_arr=None):
+def refresh_p(event_arr):
     """Recompute and redraw the P distribution."""
     edges = bin_edges()
     lefts, rights, probs = compute_probs(edges, event_arr)
@@ -167,15 +158,6 @@ def cb_add_events():
 def cb_make_dist():
     # Build new P from current events; old P is replaced
     refresh_p(event_arr=all_events)
-    # Show events as rug overlay on P figure
-    if len(all_events) > 0:
-        rug_h = p_fig.y_range.end * 0.05  # 5 % of chart height
-        p_rug_source.data = dict(
-            x=all_events,
-            y=np.full(len(all_events), rug_h if rug_h > 0 else 0.01),
-        )
-    else:
-        p_rug_source.data = dict(x=[], y=[])
 
 
 def cb_clear_events():
@@ -214,10 +196,7 @@ def cb_fencepost(attr, old, new):
     fencepost_input.value = ""
     fencepost_input.visible = False
     # Recompute P — keep using same events if any
-    refresh_p(event_arr=all_events if len(all_events) > 0 else None)
-    # Refresh P's rug overlay if it was showing
-    if len(p_rug_source.data["x"]) > 0:
-        cb_make_dist()
+    refresh_p(event_arr=all_events)
 
 
 add_events_btn.on_click(cb_add_events)
