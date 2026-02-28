@@ -21,16 +21,15 @@ def bin_edges():
     return np.array([X_MIN] + sorted(fenceposts) + [X_MAX])
 
 
-def compute_probs(edges, event_arr=None):
+def compute_probs(edges, event_arr):
     """
     Return (lefts, rights, probs) for a histogram with LaPlace smoothing.
     If event_arr is None, all bins get equal weight (pure LaPlace).
     """
     n_bins = len(edges) - 1
-    counts = np.zeros(n_bins)
-    if event_arr is not None and len(event_arr) > 0:
-        raw, _ = np.histogram(event_arr, bins=edges)
-        counts = raw.astype(float)
+    #counts = np.zeros(n_bins)
+    raw, _ = np.histogram(event_arr, bins=edges)
+    counts = raw.astype(float)
     # LaPlace smoothing
     smoothed = counts + LAPLACE_ALPHA
     probs = smoothed / smoothed.sum()
@@ -51,7 +50,7 @@ def bar_colors(n):
 
 # ── Initial distribution ──────────────────────────────────────────────────────
 edges0 = bin_edges()
-lefts0, rights0, probs0 = compute_probs(edges0)
+lefts0, rights0, probs0 = compute_probs(edges0, all_events)
 widths0 = rights0 - lefts0
 centers0 = (lefts0 + rights0) / 2
 
