@@ -35,7 +35,7 @@ def source_pdf(key, x):
         return 0.5 * stats.beta.pdf(x, 2, 2) + 0.5 * stats.beta.pdf(x, 20, 20)
     return SOURCES[key]['dist'].pdf(x)
 
-def theoretical_entropy(key):
+def entropy_of_source(key):
     """Compute theoretical binned entropy in bits (matches histogram computation)."""
     from scipy.integrate import quad
     bin_probs = np.zeros(N_BINS)
@@ -68,9 +68,8 @@ def compute_binned_entropy(counts):
 def surprisal_of_event(value, counts):
     """Surprisal in bits for a single event given current histogram."""
     bin_idx = np.clip(np.searchsorted(BIN_EDGES, value, side='right') - 1, 0, N_BINS - 1)
+    counts = counts + 1
     total = counts.sum()
-    if total == 0 or counts[bin_idx] == 0:
-        return 10.0  # cap surprisal for unseen bins
     prob = counts[bin_idx] / total
     return -np.log2(prob)
 
@@ -175,7 +174,7 @@ class EntropySimulator:
 
         # Reveal button
         ax_reveal = self.fig.add_axes([0.72, 0.75, 0.23, 0.05])
-        self.btn_reveal = Button(ax_reveal, 'Reveal Distribution', color='#533483',
+        self.btn_reveal = Button(ax_reveal, 'Reveal source', color='#533483',
                                   hovercolor='#e94560')
         self.btn_reveal.label.set_color('white')
         self.btn_reveal.on_clicked(self.on_reveal)
@@ -205,16 +204,21 @@ class EntropySimulator:
         self._update_theory_line()
 
     def _update_theory_line(self):
-        """Add/update theoretical entropy dashed line."""
-        h = theoretical_entropy(self.current_source)
+        """Add/update theoretical entropy dashed line (hidden until revealed)."""
+        h = entropy_of_source(self.current_source)
         if self.entropy_theory_line is not None:
             self.entropy_theory_line.remove()
         self.entropy_theory_line = self.ax_entropy.axhline(
             y=h, color='#e2d810', linestyle='--', linewidth=1, alpha=0.7,
-            label=f'Theoretical: {h:.3f} bits')
-        self.ax_entropy.legend(loc='upper right', fontsize=8,
-                                facecolor='#16213e', edgecolor='#aaa',
-                                labelcolor='white')
+            label=f'True entropy: {h:.3f} bits')
+        self.entropy_theory_line.set_visible(self.revealed)
+        legend = self.ax_entropy.get_legend()
+        if legend:
+            legend.remove()
+        if self.revealed:
+            self.ax_entropy.legend(loc='upper right', fontsize=8,
+                                    facecolor='#16213e', edgecolor='#aaa',
+                                    labelcolor='white')
 
     def toggle_play(self, event=None):
         self.playing = not self.playing
@@ -250,6 +254,8 @@ class EntropySimulator:
         else:
             self.btn_reveal.label.set_text('Reveal Distribution')
             self._clear_reveal()
+        # Show/hide the theory entropy line
+        self._update_theory_line()
         self.fig.canvas.draw_idle()
 
     def _clear_reveal(self):
@@ -312,11 +318,11 @@ class EntropySimulator:
         if n > 0:
             self.entropy_line.set_data(range(1, n + 1), self.entropy_history)
             self.ax_entropy.set_xlim(1, max(n, 10))
-            all_h = self.entropy_history + [theoretical_entropy(self.current_source)]
+            all_h = self.entropy_history + [entropy_of_source(self.current_source)]
             self.ax_entropy.set_ylim(min(all_h) - 0.3, max(all_h) + 0.3)
         else:
             self.entropy_line.set_data([], [])
-            h_theory = theoretical_entropy(self.current_source)
+            h_theory = entropy_of_source(self.current_source)
             self.ax_entropy.set_xlim(1, 10)
             self.ax_entropy.set_ylim(h_theory - 1, h_theory + 1)
 
