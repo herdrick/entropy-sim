@@ -46,8 +46,8 @@ def theoretical_entropy(key):
         else:
             p = SOURCES[key]['dist'].cdf(BIN_EDGES[i + 1]) - SOURCES[key]['dist'].cdf(BIN_EDGES[i])
         bin_probs[i] = p
-    bin_probs = bin_probs[bin_probs > 0]
-    return -np.sum(bin_probs * np.log2(bin_probs))
+    safe = np.where(bin_probs > 0, bin_probs, 1.0)
+    return -np.sum(np.where(bin_probs > 0, bin_probs * np.log2(safe), 0.0))
 
 
 # --- Binned entropy computation ---
@@ -62,8 +62,8 @@ def compute_binned_entropy(counts):
     if total == 0:
         return 0.0
     probs = counts / total
-    probs = probs[probs > 0]
-    return -np.sum(probs * np.log2(probs))
+    safe = np.where(probs > 0, probs, 1.0)
+    return -np.sum(np.where(probs > 0, probs * np.log2(safe), 0.0))
 
 def surprisal_of_event(value, counts):
     """Surprisal in bits for a single event given current histogram."""
@@ -275,6 +275,9 @@ class EntropySimulator:
         value = sample_source(self.current_source)
         self.events.append(value)
 
+        # Compute surprisal BEFORE updating counts (unseen bin → capped at 10.0)
+        s = surprisal_of_event(value, self.counts)
+
         # Update histogram counts
         bin_idx = np.clip(np.searchsorted(BIN_EDGES, value, side='right') - 1, 0, N_BINS - 1)
         self.counts[bin_idx] += 1
@@ -282,9 +285,6 @@ class EntropySimulator:
         # Compute entropy
         h = compute_binned_entropy(self.counts)
         self.entropy_history.append(h)
-
-        # Compute surprisal (use counts BEFORE this event for surprisal, but after is fine too)
-        s = surprisal_of_event(value, self.counts)
         self.surprisal_history.append(s)
         # Running average
         avg = np.mean(self.surprisal_history)
