@@ -1,0 +1,4 @@
+# conda install --file requirements.txt
+numpy
+scipy
+bokeh
