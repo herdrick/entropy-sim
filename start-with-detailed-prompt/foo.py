@@ -33,7 +33,7 @@ def compute_probs(edges, event_arr):
         counts = np.bincount(indices, minlength=n_bins).astype(float)
     else:
         counts = np.zeros(n_bins)
-    smoothed = counts + LAPLACE_ALPHA
+    smoothed = np.where(counts == 0, LAPLACE_ALPHA, counts)  # Laplace smoothing: only empty bins
     probs = smoothed / smoothed.sum()
     lefts = edges[:-1]
     rights = edges[1:]
