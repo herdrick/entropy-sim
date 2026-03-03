@@ -1,7 +1,7 @@
 import numpy as np
 from bokeh.plotting import figure, curdoc
 from bokeh.models import (
-    ColumnDataSource, Div, TextInput, Button, Row, Column, Spacer
+    ColumnDataSource, CustomJS, Div, TextInput, Button, Row, Column, Spacer
 )
 from bokeh.layouts import layout
 import events as ev
@@ -17,25 +17,45 @@ fenceposts = []                          # sorted list of interior bin edges
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def bin_edges():
-    """Full edge array including domain boundaries."""
-    return np.array([X_MIN] + sorted(fenceposts) + [X_MAX])
+    """Full edge array: -inf, interior fenceposts (sorted), +inf."""
+    return np.array([-np.inf] + sorted(fenceposts) + [np.inf])
 
 
 def compute_probs(edges, event_arr):
     """
     Return (lefts, rights, probs) for a histogram with LaPlace smoothing.
-    If event_arr is None, all bins get equal weight (pure LaPlace).
+    Outer edges may be -inf / +inf; counting uses searchsorted on interior edges.
     """
     n_bins = len(edges) - 1
-    #counts = np.zeros(n_bins)
-    raw, _ = np.histogram(event_arr, bins=edges)
-    counts = raw.astype(float)
-    # LaPlace smoothing
+    interior = edges[1:-1]  # finite fenceposts only
+    if len(event_arr) > 0:
+        indices = np.searchsorted(interior, event_arr)
+        counts = np.bincount(indices, minlength=n_bins).astype(float)
+    else:
+        counts = np.zeros(n_bins)
     smoothed = counts + LAPLACE_ALPHA
     probs = smoothed / smoothed.sum()
     lefts = edges[:-1]
     rights = edges[1:]
     return lefts, rights, probs
+
+
+def make_source_data(lefts, rights, probs, x_start=X_MIN, x_end=X_MAX):
+    """
+    Build the dict for p_source.  Infinite outer edges are clipped to
+    x_start/x_end for the initial render; left_inf/right_inf masks let the
+    JS range callback extend them to the live viewport on every pan/zoom.
+    """
+    left_inf  = np.isneginf(lefts).astype(int)
+    right_inf = np.isposinf(rights).astype(int)
+    dl = np.where(left_inf,  x_start, lefts)
+    dr = np.where(right_inf, x_end,   rights)
+    return dict(
+        left=dl, right=dr, top=probs,
+        center=(dl + dr) / 2, width=dr - dl,
+        color=bar_colors(len(probs)),
+        left_inf=left_inf, right_inf=right_inf,
+    )
 
 
 def entropy_bits(probs):
@@ -48,23 +68,15 @@ def bar_colors(n):
     return ["#4878CF"] * n
 
 
-# ── Initial distribution ──────────────────────────────────────────────────────
-edges0 = bin_edges()
-lefts0, rights0, probs0 = compute_probs(edges0, all_events)
-widths0 = rights0 - lefts0
-centers0 = (lefts0 + rights0) / 2
-
 # ── Data sources ─────────────────────────────────────────────────────────────
 
 # Rug plot (top figure) — raw events
 rug_source = ColumnDataSource(dict(x=[], y=[]))
 
-# P bar chart
-p_source = ColumnDataSource(dict(
-    left=lefts0, right=rights0, top=probs0,
-    center=centers0, width=widths0,
-    color=bar_colors(len(probs0)),
-))
+# P bar chart — seeded with the single uniform bin
+edges0 = bin_edges()
+lefts0, rights0, probs0 = compute_probs(edges0, all_events)
+p_source = ColumnDataSource(make_source_data(lefts0, rights0, probs0))
 
 # ── Figures ──────────────────────────────────────────────────────────────────
 
@@ -83,7 +95,7 @@ rug_fig.ygrid.visible = False
 rug_fig.segment(
     x0="x", y0=-0.4, x1="x", y1=0.4,
     source=rug_source,
-    line_color="#888888", line_width=1, alpha=0.25,
+    line_color="#888888", line_width=1, alpha=0.02,
 )
 
 # P distribution figure — shares x_range with rug so zoom is linked
@@ -101,18 +113,41 @@ p_fig.quad(
 p_fig.xaxis.axis_label = "Value"
 p_fig.yaxis.axis_label = "Probability"
 
+# JS callback: whenever the shared x_range changes, stretch infinite-edge bars
+# to fill the current viewport so they always look like they extend to ±∞.
+_range_cb = CustomJS(args=dict(source=p_source, x_range=rug_fig.x_range), code="""
+    const data  = source.data;
+    const li    = data['left_inf'];
+    const ri    = data['right_inf'];
+    const left  = data['left'].slice();
+    const right = data['right'].slice();
+    const xstart = x_range.start;
+    const xend   = x_range.end;
+    for (let i = 0; i < left.length; i++) {
+        if (li[i]) left[i]  = xstart;
+        if (ri[i]) right[i] = xend;
+    }
+    const center = left.map((l, i) => (l + right[i]) / 2);
+    const width  = left.map((l, i) => right[i] - l);
+    data['left']   = left;
+    data['right']  = right;
+    data['center'] = center;
+    data['width']  = width;
+    source.change.emit();
+""")
+rug_fig.x_range.js_on_change('start', _range_cb)
+rug_fig.x_range.js_on_change('end',   _range_cb)
+
 # ── Update helpers ────────────────────────────────────────────────────────────
 
 def refresh_p(event_arr):
     """Recompute and redraw the P distribution."""
     edges = bin_edges()
     lefts, rights, probs = compute_probs(edges, event_arr)
-    widths = rights - lefts
-    centers = (lefts + rights) / 2
-    p_source.data = dict(
-        left=lefts, right=rights, top=probs,
-        center=centers, width=widths,
-        color=bar_colors(len(probs)),
+    p_source.data = make_source_data(
+        lefts, rights, probs,
+        x_start=rug_fig.x_range.start,
+        x_end=rug_fig.x_range.end,
     )
     p_fig.title.text = f"P  |  Entropy = {entropy_bits(probs):.4f} bits"
 
@@ -181,10 +216,6 @@ def cb_fencepost(attr, old, new):
         val = float(val_str)
     except ValueError:
         fencepost_status.text = f"'{val_str}' is not a valid number."
-        fencepost_input.value = ""
-        return
-    if val <= X_MIN or val >= X_MAX:
-        fencepost_status.text = f"Fencepost must be in ({X_MIN}, {X_MAX})."
         fencepost_input.value = ""
         return
     if val in fenceposts:
