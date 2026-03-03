@@ -58,9 +58,8 @@ BIN_WIDTH = 1.0 / N_BINS
 
 def compute_binned_entropy(counts):
     """Entropy in bits from histogram counts."""
+    counts = counts + 1
     total = counts.sum()
-    if total == 0:
-        return 0.0
     probs = counts / total
     safe = np.where(probs > 0, probs, 1.0)
     return -np.sum(np.where(probs > 0, probs * np.log2(safe), 0.0))
@@ -281,7 +280,7 @@ class EntropySimulator:
         value = sample_source(self.current_source)
         self.events.append(value)
 
-        # Compute surprisal BEFORE updating counts (unseen bin → capped at 10.0)
+        # Compute surprisal BEFORE updating counts (probability based on prior observations)
         s = surprisal_of_event(value, self.counts)
 
         # Update histogram counts
