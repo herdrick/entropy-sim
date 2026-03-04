@@ -39,15 +39,3 @@ cd start-with-detailed-prompt
 ```
 
 Both apps require Python 3.8 or later and no API keys or external accounts.
-
----
-
-## Contributing
-
-Contributions are welcome. If you find a bug, have an idea for a new mystery source, or want to improve the documentation, please open an issue or pull request. This is a small educational project, so even minor improvements matter.
-
----
-
-## License
-
-This repository does not yet include an explicit license file. If you intend to reuse the code, please open an issue to ask about licensing terms.

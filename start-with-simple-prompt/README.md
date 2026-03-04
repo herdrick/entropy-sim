@@ -108,36 +108,3 @@ The six mystery sources are:
 3. The **running average surprisal** (yellow line) converges toward the theoretical entropy — this is the empirical demonstration of the Shannon source coding theorem.
 4. Once the histogram shape looks stable, click **Reveal Distribution** to overlay the true PDF (yellow curve) and see the theoretical entropy dashed line in the entropy panel.
 5. Use the **radio buttons** to switch sources and compare how entropy and surprisal differ across distributions.
-
----
-
-## Troubleshooting
-
-**Window does not open / `_tkinter` import error**
-
-The app uses the `TkAgg` backend, which requires the Tk GUI toolkit. Install it for your platform:
-
-```bash
-# macOS (Homebrew)
-brew install python-tk
-
-# Ubuntu / Debian
-sudo apt install python3-tk
-```
-
-**Plot is blank or frozen after pressing Play**
-
-Some display environments (remote servers, minimal containers) have no display. Run the app on a machine with a local desktop session, or configure X11 forwarding.
-
-**`ModuleNotFoundError` for numpy, scipy, or matplotlib**
-
-Make sure you activated your virtual environment before running the script:
-
-```bash
-source .venv/bin/activate   # macOS / Linux
-python entropy_sim.py
-```
-
-**Histogram looks unusual for Source F**
-
-Source F is a bimodal mixture distribution. With a small number of samples the two peaks may not be obvious — let it run to a few hundred events and the two humps will become clear.
