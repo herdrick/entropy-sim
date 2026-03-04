@@ -1,6 +1,6 @@
 # Entropy & Surprisal Simulations
 
-Interactive tools for building intuition about Shannon entropy and surprisal. Both apps let you watch information-theoretic quantities update live as data arrives, making the math tangible rather than abstract.
+Interactive tools for building intuition about Shannon entropy and surprisal. These apps let you watch information-theoretic quantities update live as data arrives, making the math tangible rather than abstract.
 
 This repository contains two independent applications. Each has its own full README with installation and usage instructions.
 
