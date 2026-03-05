@@ -88,7 +88,7 @@ rug_fig = figure(
     width=PLOT_WIDTH, height=80,
     x_range=(X_MIN, X_MAX), y_range=(-0.5, 0.5),
     tools=TOOLS, toolbar_location="right",
-    title="Events",
+    title="Events (0)",
 )
 rug_fig.yaxis.visible = False
 rug_fig.ygrid.visible = False
@@ -155,6 +155,10 @@ def refresh_p(event_arr):
 def refresh_rug():
     """Update the top rug figure from all_events."""
     rug_source.data = dict(x=all_events, y=np.zeros(len(all_events)))
+    rug_fig.title.text = f"Events ({len(all_events)})"
+    has_events = len(all_events) > 0
+    make_dist_btn.disabled = not has_events
+    clear_events_btn.disabled = not has_events
 
 
 # ── Controls ─────────────────────────────────────────────────────────────────
@@ -163,8 +167,8 @@ def refresh_rug():
 n_events_input = TextInput(value="1000", title="", width=80)
 
 add_events_btn = Button(label="Add events", button_type="success", width=120)
-make_dist_btn = Button(label="Make distribution from events", button_type="primary", width=240)
-clear_events_btn = Button(label="Clear events", button_type="warning", width=120)
+make_dist_btn = Button(label="Make distribution from events", button_type="primary", width=240, disabled=True)
+clear_events_btn = Button(label="Clear events", button_type="warning", width=120, disabled=True)
 
 divide_bin_btn = Button(label="Add one bin edge", button_type="default", width=120)
 fencepost_input = TextInput(
@@ -227,6 +231,9 @@ def cb_clear_events():
     global all_events
     all_events = np.array([], dtype=float)
     rug_source.data = dict(x=[], y=[])
+    rug_fig.title.text = "Events (0)"
+    make_dist_btn.disabled = True
+    clear_events_btn.disabled = True
     # Note: do NOT change P or its rug overlay
 
 
@@ -308,7 +315,7 @@ divide_bin_btn.js_on_click(CustomJS(args=dict(inp=fencepost_input), code="""
 """))
 fencepost_input.on_change("value", cb_fencepost)
 equal_width_btn.on_click(cb_equal_width_toggle)
-ew_count_input.on_change("value", cb_ew_count_change)
+ew_count_input.on_change("value_input", cb_ew_count_change)
 ew_submit_btn.on_click(cb_equal_width_submit)
 
 # ── Layout ────────────────────────────────────────────────────────────────────
