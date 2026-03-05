@@ -202,7 +202,7 @@ class EntropySimulator:
 
         # Add Event button
         ax_add_event = self.fig.add_axes([0.72, 0.17, 0.23, 0.05])
-        self.btn_add_event = Button(ax_add_event, 'Add an event', color='#0f3460',
+        self.btn_add_event = Button(ax_add_event, 'Manually add event', color='#0f3460',
                                      hovercolor='#e94560')
         self.btn_add_event.label.set_color('white')
         self.btn_add_event.on_clicked(self.on_add_event)
