@@ -153,3 +153,114 @@ Keep it to these two files. Inline the CSS in index.html.
 - The speed slider should update the timer interval immediately when dragged.
 - Histogram y-axis shows probability (count/total), not raw counts.
 - When no events have occurred yet, show empty charts with reasonable default axis ranges.
+
+## Reference: Three.js styling and controls
+
+Use the following CSS and patterns from an existing project as a style reference for the Three.js histogram panel.
+
+### CSS for the Three.js container and controls overlay
+
+```css
+#threejs-container {
+  position: relative;
+  width: 100%;
+  height: 600px;
+  border: 1px solid #ccc;
+  margin: 10px 0;
+}
+
+#resetCameraBtn {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  padding: 8px 12px;
+  font-size: 20px;
+  cursor: pointer;
+  z-index: 100;
+  transition: background 0.2s;
+}
+
+#resetCameraBtn:hover {
+  background: rgba(255, 255, 255, 1);
+  border-color: #4285F4;
+}
+
+#controls3d {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 10px;
+  border-radius: 5px;
+  font-size: 12px;
+  max-width: 200px;
+}
+```
+
+Adapt the colors to our dark theme (e.g. `rgba(26, 26, 46, 0.9)` backgrounds, light text). The key patterns to preserve: the container is `position: relative` so overlays can be `position: absolute` inside it; the reset camera button and controls hint overlay float over the canvas.
+
+### Controls hint HTML
+
+```html
+<div id="controls3d">
+  <strong>3D Controls:</strong><br>
+  • Orbit: Left click + drag<br>
+  • Zoom: Mouse wheel<br>
+  • Pan: Right click + drag
+</div>
+```
+
+### Three.js initialization pattern
+
+Follow this general structure for the histogram renderer:
+
+```js
+// Scene
+scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1a2e);
+
+// Orthographic camera (not perspective — we want flat 2D look by default)
+// Size the frustum to match the data range [0, 1] on x-axis
+camera = new THREE.OrthographicCamera(left, right, top, bottom, near, far);
+
+// Renderer
+renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(container.offsetWidth, container.offsetHeight);
+container.appendChild(renderer.domElement);
+
+// OrbitControls
+controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.rotateSpeed = 0.7;
+controls.zoomSpeed = 0.8;
+controls.panSpeed = 1.0;
+
+// Store initial camera state for reset
+initialCameraPosition = camera.position.clone();
+initialCameraTarget = controls.target.clone();
+
+// Reset camera button
+resetCameraBtn.addEventListener('click', () => {
+  camera.position.copy(initialCameraPosition);
+  controls.target.copy(initialCameraTarget);
+  controls.update();
+});
+
+// Resize handler
+window.addEventListener('resize', () => {
+  // update camera aspect/frustum and renderer size
+});
+
+// Animate loop
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+```
+
+Note: the reference project uses a PerspectiveCamera because it's a true 3D point cloud viewer. Our histogram panel should use an **OrthographicCamera** so the default view looks like a flat 2D bar chart.
