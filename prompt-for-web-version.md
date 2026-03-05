@@ -23,10 +23,10 @@ Build a static web application (no backend) that is an interactive entropy and s
 
 This is the key panel. Render it with **Three.js using an orthographic camera**.
 
-- **1D mode (default):** 20 bins over [0, 1]. Render as 3D bars (box geometries) viewed from directly above/front in orthographic projection so it looks like a flat 2D bar chart. The z-axis is degenerate — bars have minimal depth. If the user rotates the camera (via OrbitControls), they see it's a flat chart — this is fine and expected.
+- **1D mode (default):** Bins defined by `bin_edges` (initially 21 edges = 20 bins over [0, 1]). The leftmost and rightmost bins are open intervals extending to -/+infinity (see Binning section). Render as 3D bars (box geometries) viewed from directly above/front in orthographic projection so it looks like a flat 2D bar chart. The z-axis is degenerate — bars have minimal depth. If the user rotates the camera (via OrbitControls), they see it's a flat chart — this is fine and expected.
 - Bar heights = probability (count / total). Update bar mesh heights each time an event arrives.
 - Show bin edge markers at 0 and 1.
-- Include 2 overflow bins: one for values < 0, one for values >= 1. These appear when events land outside [0,1].
+- The leftmost and rightmost bars are displayed at the same width as other bars by default, but visually stretch to fill the visible x-range when the user zooms out past [0, 1].
 - **Reveal mode:** When the user clicks "Reveal Distribution", overlay the true PDF curve (scaled by bin width to match histogram units). Use a line geometry or a ribbon mesh in yellow (`#e2d810`).
 - Axis labels: "Value" (x), "Probability" (y). Render axis labels and tick marks as HTML overlays positioned over the canvas, or as CSS2DRenderer labels.
 - Scroll-to-zoom on the x-axis, centered on cursor position.
@@ -36,8 +36,8 @@ This is the key panel. Render it with **Three.js using an orthographic camera**.
 ### Panel 2: Entropy Over Time (top-right) — CHART.JS
 
 - Line chart. X-axis = event count, Y-axis = entropy in bits.
-- Single line (`#e94560`) showing the estimated Shannon entropy after each event.
-- When revealed: dashed horizontal line (`#e2d810`) at the theoretical entropy value, with a legend label like "True entropy: X.XXX bits".
+- Single line (`#e94560`) showing the **model entropy** (from `compute_model_entropy()`) after each event.
+- When revealed: dashed horizontal line (`#e2d810`) at the **source entropy** (from `compute_source_entropy()`), with a legend label like "Source entropy: X.XXX bits".
 - Auto-scale axes.
 
 ### Panel 3: Surprisal Stream (bottom-left) — CHART.JS
@@ -85,23 +85,28 @@ Use jStat for Beta PDF, CDF, and random sampling. For Source F (mixture), sample
 All entropy and surprisal values are in **bits** (log base 2).
 
 ### Binning
-- 20 finite bins over [0, 1] (edges at `linspace(0, 1, 21)`) plus 2 overflow bins (left: (-inf, 0), right: [1, +inf)).
-- Total bins for counting: 22.
+- The fundamental data structure is `bin_edges` — an array of edges. Initially `linspace(0, 1, 21)` (21 edges, producing 20 bins). The bin count is always just `bin_edges.length - 1`. We will make `bin_edges` user-configurable in a future version.
+- The leftmost bin is **open on the left**: (-inf, bin_edges[1]). It catches any value below the first interior edge, including values below 0.
+- The rightmost bin is **open on the right**: [bin_edges[n-1], +inf) where n = bin_edges.length - 1. It catches any value at or above the last interior edge, including values above 1.
+- The interior bins are half-open intervals: [bin_edges[i], bin_edges[i+1]).
+- There are no special "overflow" bins — the first and last bins simply extend to infinity. All bins are treated uniformly in the entropy/surprisal math.
 
 ### Bin index mapping
 ```
-if value < 0:        bin = 0           (left overflow)
-if value >= 1:       bin = 21          (right overflow)
-otherwise:           bin = floor(value * 20) + 1   (or use searchsorted equivalent)
-```
-Note: a value of exactly 1.0 goes to the right overflow bin.
+n_bins = bin_edges.length - 1
 
-### Laplace-smoothed entropy
+if value < bin_edges[1]:           bin = 0              (leftmost open bin)
+if value >= bin_edges[n_bins - 1]: bin = n_bins - 1     (rightmost open bin)
+otherwise:                         bin = searchsorted(bin_edges, value) - 1, clamped to [0, n_bins - 1]
 ```
-smoothed_counts = counts + 1          (add 1 to ALL 22 bins)
+
+### Model entropy (Laplace-smoothed)
+This is the entropy of the model built from observed data. Called `compute_model_entropy()`.
+```
+smoothed_counts = counts + 1          (add 1 to ALL bins)
 total = sum(smoothed_counts)
 probs = smoothed_counts / total
-entropy = -sum(probs * log2(probs))
+model_entropy = -sum(probs * log2(probs))
 ```
 
 ### Surprisal of an event
@@ -114,14 +119,15 @@ surprisal = -log2(prob)
 ```
 **Important:** Compute surprisal BEFORE adding the event to the histogram counts. This gives the surprisal of the event given the model *before* it saw that event.
 
-### Theoretical binned entropy
-For computing the "true" entropy that the estimated entropy converges toward:
+### Theoretical entropy of source
+This is the true binned entropy of the underlying distribution. Called `compute_source_entropy()`. It is what the model entropy converges toward.
 ```
-cdf_at_edges = source_cdf(edges)        // CDF evaluated at all 21 bin edges
-bin_probs[0] = cdf_at_edges[0]          // left overflow probability
-bin_probs[1..20] = diff(cdf_at_edges)   // finite bin probabilities
-bin_probs[21] = 1 - cdf_at_edges[20]    // right overflow probability
-entropy = -sum(p * log2(p) for p in bin_probs if p > 0)
+cdf_at_edges = source_cdf(bin_edges)           // CDF evaluated at all edges
+bin_probs = diff(cdf_at_edges)                 // probabilities from consecutive CDF differences
+// Adjust endpoints for open bins:
+bin_probs[0] += cdf_at_edges[0]                // add P(X < 0) to leftmost bin
+bin_probs[last] += 1.0 - cdf_at_edges[last+1] // add P(X >= 1) to rightmost bin
+source_entropy = -sum(p * log2(p) for p in bin_probs if p > 0)
 ```
 
 ## Timing / Animation
