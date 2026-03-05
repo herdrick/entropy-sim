@@ -417,6 +417,13 @@ class EntropySimulator:
         self.right_overflow_bar.set_height(probs[-1])
         ymax = max(probs.max() * 1.3, 0.01) if total > 0 else 0.2
         self.ax_hist.set_ylim(0, ymax)
+        # Auto-expand x-axis to show overflow bins when events fall outside [0, 1]
+        if total > 0 and len(self.events) > 0:
+            emin = min(self.events)
+            emax = max(self.events)
+            xleft = min(0, emin - 0.1) if emin < 0 else 0
+            xright = max(1, emax + 0.1) if emax > 1 else 1
+            self.ax_hist.set_xlim(xleft, xright)
 
         # --- Entropy ---
         if n > 0:
@@ -452,11 +459,11 @@ class EntropySimulator:
             last = self.events[-1]
             self.event_marker.set_data([last], [0])
             s = self.surprisal_history[-1]
-            h_est = self.entropy_history[-1]
+            h_model = self.entropy_history[-1]
             self.event_text.set_text(
                 f'Value: {last:.4f}\n'
                 f'Surprisal: {s:.2f} bits\n'
-                f'Entropy est: {h_est:.3f} bits\n'
+                f'Entropy of model: {h_model:.7f} bits\n'
                 f'Events: {n}'
             )
         else:
