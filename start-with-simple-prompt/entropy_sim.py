@@ -35,26 +35,38 @@ def source_pdf(key, x):
         return 0.5 * stats.beta.pdf(x, 2, 2) + 0.5 * stats.beta.pdf(x, 20, 20)
     return SOURCES[key]['dist'].pdf(x)
 
+def source_cdf(key, x):
+    if key == 'Source F':
+        return 0.5 * stats.beta.cdf(x, 2, 2) + 0.5 * stats.beta.cdf(x, 20, 20)
+    return SOURCES[key]['dist'].cdf(x)
+
 def entropy_of_source(key):
     """Compute theoretical binned entropy in bits (matches histogram computation)."""
-    from scipy.integrate import quad
-    bin_probs = np.zeros(N_BINS)
-    for i in range(N_BINS):
-        if key == 'Source F':
-            p, _ = quad(lambda x: 0.5 * stats.beta.pdf(x, 2, 2) + 0.5 * stats.beta.pdf(x, 20, 20),
-                        BIN_EDGES[i], BIN_EDGES[i + 1])
-        else:
-            p = SOURCES[key]['dist'].cdf(BIN_EDGES[i + 1]) - SOURCES[key]['dist'].cdf(BIN_EDGES[i])
-        bin_probs[i] = p
+    cdf_at_edges = source_cdf(key, BIN_EDGES)
+    bin_probs = np.zeros(N_FINITE_BINS + 2)
+    bin_probs[0] = cdf_at_edges[0]                        # (-inf, 0)
+    bin_probs[1:N_FINITE_BINS + 1] = np.diff(cdf_at_edges)  # finite bins
+    bin_probs[-1] = 1.0 - cdf_at_edges[-1]                # [1, +inf)
     safe = np.where(bin_probs > 0, bin_probs, 1.0)
     return -np.sum(np.where(bin_probs > 0, bin_probs * np.log2(safe), 0.0))
 
 
 # --- Binned entropy computation ---
-N_BINS = 20
-BIN_EDGES = np.linspace(0, 1, N_BINS + 1)
+N_BIN_EDGES = 21
+BIN_EDGES = np.linspace(0, 1, N_BIN_EDGES)
+N_FINITE_BINS = N_BIN_EDGES - 1
 BIN_CENTERS = 0.5 * (BIN_EDGES[:-1] + BIN_EDGES[1:])
-BIN_WIDTH = 1.0 / N_BINS
+BIN_WIDTH = 1.0 / N_FINITE_BINS
+
+
+
+def get_bin_idx(value):
+    """Map value to bin index: 0=left overflow, 1..N_FINITE_BINS=finite, N_FINITE_BINS+1=right overflow."""
+    if value < BIN_EDGES[0]:
+        return 0
+    if value >= BIN_EDGES[-1]:
+        return N_FINITE_BINS + 1
+    return np.searchsorted(BIN_EDGES, value, side='right')
 
 def compute_binned_entropy(counts):
     """Entropy in bits from histogram counts."""
@@ -66,7 +78,7 @@ def compute_binned_entropy(counts):
 
 def surprisal_of_event(value, counts):
     """Surprisal in bits for a single event given current histogram."""
-    bin_idx = np.clip(np.searchsorted(BIN_EDGES, value, side='right') - 1, 0, N_BINS - 1)
+    bin_idx = get_bin_idx(value)
     counts = np.where(counts == 0, 1, counts)  # Laplace smoothing: only empty bins
     total = counts.sum()
     prob = counts[bin_idx] / total
@@ -87,7 +99,7 @@ class EntropySimulator:
 
     def reset_data(self):
         self.events = []
-        self.counts = np.zeros(N_BINS, dtype=float)
+        self.counts = np.zeros(N_FINITE_BINS + 2, dtype=float)
         self.entropy_history = []
         self.surprisal_history = []
         self.running_avg_surprisal = []
@@ -110,10 +122,21 @@ class EntropySimulator:
         self.ax_hist.set_ylabel('Probability', color='#aaa', fontsize=9)
         self.ax_hist.set_xlim(0, 1)
         self.ax_hist.tick_params(colors='#aaa')
-        self.hist_bars = self.ax_hist.bar(BIN_CENTERS, np.zeros(N_BINS),
+        self.hist_bars = self.ax_hist.bar(BIN_CENTERS, np.zeros(N_FINITE_BINS),
                                           width=BIN_WIDTH * 0.9, color='#0f3460',
                                           edgecolor='#e94560', linewidth=0.5)
         self.hist_pdf_line = None  # for reveal
+        # Overflow bins (initially zero-width, stretched to view edges on zoom)
+        self.left_overflow_bar = self.ax_hist.bar([0], [0], width=0, color='#0f3460',
+                                                   edgecolor='#e94560', linewidth=0.5)[0]
+        self.right_overflow_bar = self.ax_hist.bar([1], [0], width=0, color='#0f3460',
+                                                    edgecolor='#e94560', linewidth=0.5)[0]
+        # Bin edge markers at 0 and 1
+        self.ax_hist.axvline(0, color='#aaa', linewidth=0.8, linestyle='--', alpha=0.5)
+        self.ax_hist.axvline(1, color='#aaa', linewidth=0.8, linestyle='--', alpha=0.5)
+
+        # Scroll-to-zoom on histogram x-axis
+        self.fig.canvas.mpl_connect('scroll_event', self._on_scroll)
 
         # --- Panel 2: Entropy over time (top-right) ---
         self.ax_entropy = self.fig.add_subplot(gs[0, 1])
@@ -238,8 +261,11 @@ class EntropySimulator:
         if self.revealed:
             name = SOURCES[self.current_source]['name']
             self.btn_reveal.label.set_text(f'{name}')
-            # Overlay true PDF on histogram
-            x = np.linspace(0.001, 0.999, 500)
+            # Overlay true PDF on histogram, extending to visible range
+            xlim = self.ax_hist.get_xlim()
+            x_lo = max(xlim[0], 0.001)
+            x_hi = min(xlim[1], 0.999)
+            x = np.linspace(x_lo, x_hi, 500)
             pdf = source_pdf(self.current_source, x)
             # Scale PDF to match histogram (probability per bin = pdf * bin_width)
             if self.hist_pdf_line is not None:
@@ -256,6 +282,52 @@ class EntropySimulator:
         # Show/hide the theory entropy line
         self._update_theory_line()
         self.fig.canvas.draw_idle()
+
+    def _on_scroll(self, event):
+        """Scroll-to-zoom on histogram x-axis."""
+        if event.inaxes != self.ax_hist:
+            return
+        zoom_factor = 1.2
+        if event.button == 'up':
+            scale = 1.0 / zoom_factor
+        elif event.button == 'down':
+            scale = zoom_factor
+        else:
+            return
+        xlim = self.ax_hist.get_xlim()
+        xdata = event.xdata
+        new_left = xdata - (xdata - xlim[0]) * scale
+        new_right = xdata + (xlim[1] - xdata) * scale
+        self.ax_hist.set_xlim(new_left, new_right)
+        self._stretch_outermost_bars()
+        self._update_pdf_overlay()
+        self.fig.canvas.draw_idle()
+
+    def _stretch_outermost_bars(self):
+        """Stretch overflow bars to fill visible x range beyond [0, 1]."""
+        xlim = self.ax_hist.get_xlim()
+        # Left overflow: from visible left edge to 0
+        left_edge = min(xlim[0], BIN_EDGES[0])
+        self.left_overflow_bar.set_x(left_edge)
+        self.left_overflow_bar.set_width(BIN_EDGES[0] - left_edge)
+        # Right overflow: from 1 to visible right edge
+        right_edge = max(xlim[1], BIN_EDGES[-1])
+        self.right_overflow_bar.set_x(BIN_EDGES[-1])
+        self.right_overflow_bar.set_width(right_edge - BIN_EDGES[-1])
+
+    def _update_pdf_overlay(self):
+        """Redraw PDF overlay to cover visible x range."""
+        if not self.revealed or self.hist_pdf_line is None:
+            return
+        xlim = self.ax_hist.get_xlim()
+        # Clamp to valid domain for beta distributions (avoid 0 and 1 edges)
+        x_lo = max(xlim[0], 0.001)
+        x_hi = min(xlim[1], 0.999)
+        if x_lo >= x_hi:
+            return
+        x = np.linspace(x_lo, x_hi, 500)
+        pdf = source_pdf(self.current_source, x)
+        self.hist_pdf_line.set_data(x, pdf * BIN_WIDTH)
 
     def _clear_reveal(self):
         if self.hist_pdf_line is not None:
@@ -284,7 +356,7 @@ class EntropySimulator:
         s = surprisal_of_event(value, self.counts)
 
         # Update histogram counts
-        bin_idx = np.clip(np.searchsorted(BIN_EDGES, value, side='right') - 1, 0, N_BINS - 1)
+        bin_idx = get_bin_idx(value)
         self.counts[bin_idx] += 1
 
         # Compute entropy
@@ -307,9 +379,13 @@ class EntropySimulator:
         if total > 0:
             probs = self.counts / total
         else:
-            probs = np.zeros(N_BINS)
-        for bar, p in zip(self.hist_bars, probs):
+            probs = np.zeros(N_FINITE_BINS + 2)
+        # Finite bins (indices 1..N_FINITE_BINS in counts)
+        for bar, p in zip(self.hist_bars, probs[1:N_FINITE_BINS + 1]):
             bar.set_height(p)
+        # Overflow bins
+        self.left_overflow_bar.set_height(probs[0])
+        self.right_overflow_bar.set_height(probs[-1])
         ymax = max(probs.max() * 1.3, 0.01) if total > 0 else 0.2
         self.ax_hist.set_ylim(0, ymax)
 
@@ -357,6 +433,10 @@ class EntropySimulator:
         else:
             self.event_marker.set_data([], [])
             self.event_text.set_text('No events yet')
+
+        # Stretch outermost bars to fill visible x range
+        self._stretch_outermost_bars()
+        self._update_pdf_overlay()
 
 
 def main():
