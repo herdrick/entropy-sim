@@ -69,19 +69,18 @@ def get_bin_idx(value):
     return np.searchsorted(BIN_EDGES, value, side='right')
 
 def compute_binned_entropy(counts):
-    """Entropy in bits from histogram counts."""
-    counts = np.where(counts == 0, 1, counts)  # Laplace smoothing: only empty bins
-    total = counts.sum()
-    probs = counts / total
-    safe = np.where(probs > 0, probs, 1.0)
-    return -np.sum(np.where(probs > 0, probs * np.log2(safe), 0.0))
+    """Entropy in bits from histogram counts with Laplace (add-1) smoothing."""
+    smoothed = counts + 1  # Laplace smoothing: add 1 to all bins
+    total = smoothed.sum()
+    probs = smoothed / total
+    return -np.sum(probs * np.log2(probs))
 
 def surprisal_of_event(value, counts):
     """Surprisal in bits for a single event given current histogram."""
     bin_idx = get_bin_idx(value)
-    counts = np.where(counts == 0, 1, counts)  # Laplace smoothing: only empty bins
-    total = counts.sum()
-    prob = counts[bin_idx] / total
+    smoothed = counts + 1  # Laplace smoothing: add 1 to all bins
+    total = smoothed.sum()
+    prob = smoothed[bin_idx] / total
     return -np.log2(prob)
 
 
