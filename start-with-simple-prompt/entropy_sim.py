@@ -372,9 +372,6 @@ class EntropySimulator:
         except ValueError:
             self.textbox.set_val('')
             return
-        if value < 0 or value > 1:
-            self.textbox.set_val('')
-            return
         self._add_event(value)
         self.textbox.set_val('')
 
@@ -417,13 +414,6 @@ class EntropySimulator:
         self.right_overflow_bar.set_height(probs[-1])
         ymax = max(probs.max() * 1.3, 0.01) if total > 0 else 0.2
         self.ax_hist.set_ylim(0, ymax)
-        # Auto-expand x-axis to show overflow bins when events fall outside [0, 1]
-        if total > 0 and len(self.events) > 0:
-            emin = min(self.events)
-            emax = max(self.events)
-            xleft = min(0, emin - 0.1) if emin < 0 else 0
-            xright = max(1, emax + 0.1) if emax > 1 else 1
-            self.ax_hist.set_xlim(xleft, xright)
 
         # --- Entropy ---
         if n > 0:
