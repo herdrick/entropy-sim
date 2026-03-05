@@ -246,7 +246,7 @@ class EntropySimulator:
             self.entropy_theory_line.remove()
         self.entropy_theory_line = self.ax_entropy.axhline(
             y=h, color='#e2d810', linestyle='--', linewidth=1, alpha=0.7,
-            label=f'True entropy: {h:.3f} bits')
+            label=f"Source's entropy: {h:.3f} bits")
         self.entropy_theory_line.set_visible(self.revealed)
         legend = self.ax_entropy.get_legend()
         if legend:
@@ -275,7 +275,7 @@ class EntropySimulator:
         if self.revealed:
             name = SOURCES[self.current_source]['name']
             self.btn_reveal.label.set_text(f'{name}')
-            # Overlay true PDF on histogram, extending to visible range
+            # Overlay source's PDF on histogram, extending to visible range
             xlim = self.ax_hist.get_xlim()
             x_lo = max(xlim[0], 0.001)
             x_hi = min(xlim[1], 0.999)
@@ -286,7 +286,7 @@ class EntropySimulator:
                 self.hist_pdf_line.remove()
             self.hist_pdf_line, = self.ax_hist.plot(x, pdf * BIN_WIDTH, color='#e2d810',
                                                      linewidth=2, linestyle='-', alpha=0.9,
-                                                     label='True PDF (scaled)')
+                                                     label="Known source's PDF (scaled)")
             self.ax_hist.legend(loc='upper right', fontsize=7,
                                  facecolor='#16213e', edgecolor='#aaa',
                                  labelcolor='white')
