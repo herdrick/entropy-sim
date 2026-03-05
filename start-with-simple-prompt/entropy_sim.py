@@ -43,7 +43,7 @@ def source_cdf(key, x):
 def entropy_of_source(key):
     """Compute theoretical binned entropy in bits (matches histogram computation)."""
     cdf_at_edges = source_cdf(key, BIN_EDGES)
-    bin_probs = np.zeros(TOTAL_BINS)
+    bin_probs = np.zeros(N_FINITE_BINS + 2)
     bin_probs[0] = cdf_at_edges[0]                        # (-inf, 0)
     bin_probs[1:N_FINITE_BINS + 1] = np.diff(cdf_at_edges)  # finite bins
     bin_probs[-1] = 1.0 - cdf_at_edges[-1]                # [1, +inf)
@@ -57,7 +57,7 @@ BIN_EDGES = np.linspace(0, 1, N_BIN_EDGES)
 N_FINITE_BINS = N_BIN_EDGES - 1
 BIN_CENTERS = 0.5 * (BIN_EDGES[:-1] + BIN_EDGES[1:])
 BIN_WIDTH = 1.0 / N_FINITE_BINS
-TOTAL_BINS = N_FINITE_BINS + 2  # finite bins + 2 overflow bins (-inf,0) and [1,+inf)
+
 
 
 def get_bin_idx(value):
@@ -65,7 +65,7 @@ def get_bin_idx(value):
     if value < BIN_EDGES[0]:
         return 0
     if value >= BIN_EDGES[-1]:
-        return TOTAL_BINS - 1
+        return N_FINITE_BINS + 1
     return np.searchsorted(BIN_EDGES, value, side='right')
 
 def compute_binned_entropy(counts):
@@ -99,7 +99,7 @@ class EntropySimulator:
 
     def reset_data(self):
         self.events = []
-        self.counts = np.zeros(TOTAL_BINS, dtype=float)
+        self.counts = np.zeros(N_FINITE_BINS + 2, dtype=float)
         self.entropy_history = []
         self.surprisal_history = []
         self.running_avg_surprisal = []
@@ -379,13 +379,13 @@ class EntropySimulator:
         if total > 0:
             probs = self.counts / total
         else:
-            probs = np.zeros(TOTAL_BINS)
+            probs = np.zeros(N_FINITE_BINS + 2)
         # Finite bins (indices 1..N_FINITE_BINS in counts)
         for bar, p in zip(self.hist_bars, probs[1:N_FINITE_BINS + 1]):
             bar.set_height(p)
         # Overflow bins
         self.left_overflow_bar.set_height(probs[0])
-        self.right_overflow_bar.set_height(probs[TOTAL_BINS - 1])
+        self.right_overflow_bar.set_height(probs[-1])
         ymax = max(probs.max() * 1.3, 0.01) if total > 0 else 0.2
         self.ax_hist.set_ylim(0, ymax)
 
