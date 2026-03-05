@@ -202,7 +202,7 @@ class EntropySimulator:
 
         # Speed slider
         ax_speed = self.fig.add_axes([0.72, 0.68, 0.23, 0.03])
-        self.slider_speed = Slider(ax_speed, 'Speed', 1, 100, valinit=10, valstep=1,
+        self.slider_speed = Slider(ax_speed, 'Speed', 1, 1000, valinit=10, valstep=1,
                                     color='#e94560')
         self.slider_speed.label.set_color('white')
         self.slider_speed.valtext.set_color('white')
