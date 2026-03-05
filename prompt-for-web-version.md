@@ -23,15 +23,15 @@ Build a static web application (no backend) that is an interactive entropy and s
 
 This is the key panel. Render it with **Three.js using an orthographic camera**.
 
-- **1D mode (default):** Bins defined by `bin_edges` (initially 21 edges = 20 bins over [0, 1]). The leftmost and rightmost bins are open intervals extending to -/+infinity (see Binning section). Render as 3D bars (box geometries) viewed from directly above/front in orthographic projection so it looks like a flat 2D bar chart. The z-axis is degenerate — bars have minimal depth. If the user rotates the camera (via OrbitControls), they see it's a flat chart — this is fine and expected.
+- **1D mode (default):** Bins defined by `bin_edges` (initially 21 edges = 20 bins over [0, 1]). The leftmost and rightmost bins are open intervals extending to -/+infinity (see Binning section). Render as 3D bars (box geometries) viewed from directly above/front in orthographic projection so it looks like a flat 2D bar chart. The z-axis is degenerate — bars have zero depth. If the user rotates the camera (via OrbitControls), they see it's a flat chart — this is fine and expected.
 - Bar heights = probability (count / total). Update bar mesh heights each time an event arrives.
 - Show bin edge markers at 0 and 1.
 - The leftmost and rightmost bars are displayed at the same width as other bars by default, but visually stretch to fill the visible x-range when the user zooms out past [0, 1].
-- **Reveal mode:** When the user clicks "Reveal Distribution", overlay the true PDF curve (scaled by bin width to match histogram units). Use a line geometry or a ribbon mesh in yellow (`#e2d810`).
+- **Reveal mode:** When the user clicks "Reveal Distribution", overlay the source's PDF curve (scaled by bin width to match histogram units). Use a line geometry or a ribbon mesh in yellow (`#e2d810`).
 - Axis labels: "Value" (x), "Probability" (y). Render axis labels and tick marks as HTML overlays positioned over the canvas, or as CSS2DRenderer labels.
 - Scroll-to-zoom on the x-axis, centered on cursor position.
 
-**Future 2D extension (design for but don't build yet):** The architecture should make it natural to later switch to 20x20 bins where bars rise in the y-axis and the camera starts top-down. Rotating reveals the 3D bar chart. Keep this in mind for how you structure the histogram mesh generation — e.g., store bars in a grid-addressable structure, not a flat array tied to 1D assumptions.
+**Future 2D extension (design for but don't build yet):** The architecture should make it natural to later switch to k x j bins (10 x 10 or similar at first) where bars rise in the y-axis and the camera starts top-down. Rotating reveals the 3D bar chart. Keep this in mind for how you structure the histogram mesh generation — e.g., store bars in a grid-addressable structure, not a flat array tied to 1D assumptions.
 
 ### Panel 2: Entropy Over Time (top-right) — CHART.JS
 
@@ -43,14 +43,12 @@ This is the key panel. Render it with **Three.js using an orthographic camera**.
 ### Panel 3: Surprisal Stream (bottom-left) — CHART.JS
 
 - Scatter chart. X-axis = event index, Y-axis = surprisal in bits.
-- Each event is a dot (uniform color, no color-coding — just use `#e94560` or similar).
-- Overlay a **running average line** in yellow (`#e2d810`), which converges toward the theoretical entropy (demonstrating the Shannon source coding theorem).
+- Each event is a dot (uniform color, `#e94560` or similar).
+- Overlay a **running average line** in yellow (`#e2d810`).
 - Auto-scale axes.
 
 ### Panel 4: Latest Event (bottom-right) — CHART.JS or HTML
 
-- Shows a number line from 0 to 1 with tick marks every 0.1.
-- A large marker dot showing where the latest sample landed.
 - Text displaying:
   - Value: X.XXXX
   - Surprisal: X.XX bits
@@ -62,7 +60,7 @@ This is the key panel. Render it with **Three.js using an orthographic camera**.
 
 - **Play / Pause** button — starts/stops the sample stream
 - **Reset** button — clears all data, resets charts
-- **Reveal Distribution** button — toggles the true PDF overlay on histogram + theoretical entropy line on entropy chart. When revealed, button text changes to the distribution name (e.g. "Beta(2,5)").
+- **Reveal Distribution** button — toggles the source's PDF overlay on histogram + theoretical entropy line on entropy chart. When revealed, button text changes to the distribution name (e.g. "Beta(2,5)").
 - **Speed slider** — samples per second, range 1 to 1000, default 10
 - **Mystery Source** radio buttons — Source A through Source F
 - **Manually add event** button + text input — lets user type a numeric value and add it as an event
@@ -89,7 +87,7 @@ All entropy and surprisal values are in **bits** (log base 2).
 - The leftmost bin is **open on the left**: (-inf, bin_edges[1]). It catches any value below the first interior edge, including values below 0.
 - The rightmost bin is **open on the right**: [bin_edges[n-1], +inf) where n = bin_edges.length - 1. It catches any value at or above the last interior edge, including values above 1.
 - The interior bins are half-open intervals: [bin_edges[i], bin_edges[i+1]).
-- There are no special "overflow" bins — the first and last bins simply extend to infinity. All bins are treated uniformly in the entropy/surprisal math.
+- All bins are treated uniformly in the entropy/surprisal math.
 
 ### Bin index mapping
 ```
@@ -120,7 +118,7 @@ surprisal = -log2(prob)
 **Important:** Compute surprisal BEFORE adding the event to the histogram counts. This gives the surprisal of the event given the model *before* it saw that event.
 
 ### Theoretical entropy of source
-This is the true binned entropy of the underlying distribution. Called `compute_source_entropy()`. It is what the model entropy converges toward.
+This is the entropy of the distribution which we happen to be using as a source. (At some point we will have external sources of data, with no way to directly get an entropy.) Called `compute_source_entropy()`.
 ```
 cdf_at_edges = source_cdf(bin_edges)           // CDF evaluated at all edges
 bin_probs = diff(cdf_at_edges)                 // probabilities from consecutive CDF differences
@@ -133,7 +131,7 @@ source_entropy = -sum(p * log2(p) for p in bin_probs if p > 0)
 ## Timing / Animation
 
 - Use `setInterval` for the sample stream. Interval = `1000 / speed` ms, clamped to a minimum of 10ms.
-- On each tick (if playing): sample from current source, compute surprisal (before updating counts), update counts, compute entropy, update all four panels.
+- On each tick (if playing): receive an event from the source, compute surprisal (before updating counts), update counts, compute model entropy, update all four panels.
 - Chart.js updates: call `chart.update('none')` (skip animations) for performance during streaming.
 - Three.js updates: update bar mesh heights and call `renderer.render(scene, camera)`.
 
