@@ -8,7 +8,7 @@ from scipy import stats
 import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
-from matplotlib.widgets import Button, Slider, RadioButtons
+from matplotlib.widgets import Button, Slider, RadioButtons, TextBox
 from matplotlib import cm
 
 
@@ -223,6 +223,21 @@ class EntropySimulator:
         # Source label
         ax_radio.set_title('Mystery Source', color='white', fontsize=11, pad=10)
 
+        # Add Event button
+        ax_add_event = self.fig.add_axes([0.72, 0.17, 0.23, 0.05])
+        self.btn_add_event = Button(ax_add_event, 'Manually add event', color='#0f3460',
+                                     hovercolor='#e94560')
+        self.btn_add_event.label.set_color('white')
+        self.btn_add_event.on_clicked(self.on_add_event)
+
+        # Text box for manual event entry (initially hidden)
+        self.ax_textbox = self.fig.add_axes([0.72, 0.10, 0.23, 0.05])
+        self.textbox = TextBox(self.ax_textbox, '', initial='',
+                               color='#16213e', hovercolor='#16213e')
+        self.textbox.text_disp.set_color('white')
+        self.ax_textbox.set_visible(False)
+        self.textbox.on_submit(self.on_submit_event)
+
         self._update_theory_line()
 
     def _update_theory_line(self):
@@ -345,31 +360,45 @@ class EntropySimulator:
         self.speed = int(val)
         self.timer.interval = max(10, int(1000 / self.speed))
 
-    def step(self):
-        if not self.playing:
+    def on_add_event(self, event=None):
+        self.ax_textbox.set_visible(True)
+        self.fig.canvas.draw_idle()
+        # Focus the text box so the user can type immediately
+        self.textbox.begin_typing()
+
+    def on_submit_event(self, text):
+        try:
+            value = float(text)
+        except ValueError:
+            self.textbox.set_val('')
             return
-        # Generate event
-        value = sample_source(self.current_source)
+        if value < 0 or value > 1:
+            self.textbox.set_val('')
+            return
+        self._add_event(value)
+        self.textbox.set_val('')
+
+    def _add_event(self, value):
+        """Add a single event value to the collection and update all displays."""
         self.events.append(value)
-
-        # Compute surprisal BEFORE updating counts (probability based on prior observations)
         s = surprisal_of_event(value, self.counts)
-
         # Update histogram counts
         bin_idx = get_bin_idx(value)
         self.counts[bin_idx] += 1
-
-        # Compute entropy
         h = compute_binned_entropy(self.counts)
         self.entropy_history.append(h)
         self.surprisal_history.append(s)
-        # Running average
         avg = np.mean(self.surprisal_history)
         self.running_avg_surprisal.append(avg)
-
         self._redraw_all()
         self.fig.canvas.draw_idle()
         self.fig.canvas.flush_events()
+
+    def step(self):
+        if not self.playing:
+            return
+        value = sample_source(self.current_source)
+        self._add_event(value)
 
     def _redraw_all(self):
         n = len(self.events)
