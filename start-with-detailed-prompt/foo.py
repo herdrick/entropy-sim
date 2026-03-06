@@ -40,9 +40,9 @@ def compute_probs(edges, event_arr):
     return lefts, rights, probs
 
 
-def make_source_data(lefts, rights, probs, x_start=X_MIN, x_end=X_MAX):
+def make_column_data_source_data(lefts, rights, probs, x_start=X_MIN, x_end=X_MAX):
     """
-    Build the dict for p_source.  Infinite outer edges are clipped to
+    Build the dict for p_column_data_source.  Infinite outer edges are clipped to
     x_start/x_end for the initial render; left_inf/right_inf masks let the
     JS range callback extend them to the live viewport on every pan/zoom.
     """
@@ -76,7 +76,7 @@ rug_source = ColumnDataSource(dict(x=[], y=[]))
 # P bar chart — seeded with the single uniform bin
 edges0 = bin_edges()
 lefts0, rights0, probs0 = compute_probs(edges0, all_events)
-p_source = ColumnDataSource(make_source_data(lefts0, rights0, probs0))
+p_column_data_source = ColumnDataSource(make_column_data_source_data(lefts0, rights0, probs0))
 
 # ── Figures ──────────────────────────────────────────────────────────────────
 
@@ -107,7 +107,7 @@ p_fig = figure(
 )
 p_fig.quad(
     left="left", right="right", top="top", bottom=0,
-    source=p_source,
+    source=p_column_data_source,
     fill_color="color", line_color="white", alpha=0.8,
 )
 p_fig.xaxis.axis_label = "Value"
@@ -115,7 +115,7 @@ p_fig.yaxis.axis_label = "Probability"
 
 # JS callback: whenever the shared x_range changes, stretch infinite-edge bars
 # to fill the current viewport so they always look like they extend to ±∞.
-_range_cb = CustomJS(args=dict(source=p_source, x_range=rug_fig.x_range), code="""
+_range_cb = CustomJS(args=dict(source=p_column_data_source, x_range=rug_fig.x_range), code="""
     const data  = source.data;
     const li    = data['left_inf'];
     const ri    = data['right_inf'];
@@ -144,7 +144,7 @@ def refresh_p(event_arr):
     """Recompute and redraw the P distribution."""
     edges = bin_edges()
     lefts, rights, probs = compute_probs(edges, event_arr)
-    p_source.data = make_source_data(
+    p_column_data_source.data = make_column_data_source_data(
         lefts, rights, probs,
         x_start=rug_fig.x_range.start,
         x_end=rug_fig.x_range.end,
