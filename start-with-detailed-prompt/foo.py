@@ -11,7 +11,7 @@ X_MIN, X_MAX = -10, 10
 LAPLACE_ALPHA = 1  # pseudocount per bin
 
 # ── State ────────────────────────────────────────────────────────────────────
-all_events = np.array([], dtype=float)   # accumulated raw events
+root_events = np.array([], dtype=float)   # accumulated raw events
 interior_edges = []                          # interior bin edges (sorted)
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -74,7 +74,7 @@ rug_source = ColumnDataSource(dict(x=[], y=[]))
 
 # P bar chart — seeded with the single uniform bin
 edges0 = bin_edges()
-probs0 = compute_probabilities(edges0, all_events)
+probs0 = compute_probabilities(edges0, root_events)
 p_column_data_source = ColumnDataSource(make_column_data_source_data(edges0, probs0))
 
 # ── Figures ──────────────────────────────────────────────────────────────────
@@ -152,10 +152,10 @@ def refresh_p(event_arr):
 
 
 def refresh_rug():
-    """Update the top rug figure from all_events."""
-    rug_source.data = dict(x=all_events, y=np.zeros(len(all_events)))
-    rug_fig.title.text = f"Events ({len(all_events)})"
-    has_events = len(all_events) > 0
+    """Update the top rug figure from root_events."""
+    rug_source.data = dict(x=root_events, y=np.zeros(len(root_events)))
+    rug_fig.title.text = f"Events ({len(root_events)})"
+    has_events = len(root_events) > 0
     make_dist_btn.disabled = not has_events
     clear_events_btn.disabled = not has_events
 
@@ -208,7 +208,7 @@ def on_equal_width_count_change(attr, old, new):
     equal_width_preview.text = f"→ {total_bins} bins total"
 
 def on_add_events():
-    global all_events
+    global root_events
     try:
         n = int(n_events_input.value)
         if n <= 0:
@@ -217,18 +217,18 @@ def on_add_events():
         n = 1000
         n_events_input.value = "1000"
     new_ev = ev.get_events(n)
-    all_events = np.concatenate([all_events, new_ev])
+    root_events = np.concatenate([root_events, new_ev])
     refresh_rug()
 
 
 def on_make_dist():
     # Build new P from current events; old P is replaced
-    refresh_p(event_arr=all_events)
+    refresh_p(event_arr=root_events)
 
 
 def on_clear_events():
-    global all_events
-    all_events = np.array([], dtype=float)
+    global root_events
+    root_events = np.array([], dtype=float)
     rug_source.data = dict(x=[], y=[])
     rug_fig.title.text = "Events (0)"
     make_dist_btn.disabled = True
@@ -261,7 +261,7 @@ def on_edge_input(attr, old, new):
     edge_input.value = ""
     edge_input.visible = False
     # Recompute P — keep using same events if any
-    refresh_p(event_arr=all_events)
+    refresh_p(event_arr=root_events)
 
 
 def on_equal_width_toggle():
@@ -299,7 +299,7 @@ def on_equal_width_submit():
     equal_width_right_input.visible = False
     equal_width_count_input.visible = False
     equal_width_submit_btn.visible = False
-    refresh_p(event_arr=all_events)
+    refresh_p(event_arr=root_events)
 
 
 add_events_btn.on_click(on_add_events)
