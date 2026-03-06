@@ -62,7 +62,7 @@ When the user clicks "View derived distribution" (on the last node in the chain,
 5. Create the bokeh figure, source, and all widget instances for this node.
 6. Append the node's layout to the root Column.
 7. Append to `p_nodes`.
-8. If events exist, immediately run `recompute_chain()` so the new node shows a distribution.
+8. If events exist, immediately run `recompute_from(new_node)` so the new node shows a distribution.
 
 ## UI per node
 
@@ -74,56 +74,58 @@ Each p_node's layout Column contains, top to bottom:
 4. **Derive row** — contains:
    - A dropdown `Select` with options `["Pass events thru as they are", "Surprisal"]`.
      - For the **first** node: this dropdown is **not shown** (first node is always passthru).
-     - For subsequent nodes: both options available, default to whatever was chosen at creation time. Changing it triggers `recompute_chain()`.
+     - For subsequent nodes: both options available, default to whatever was chosen at creation time. Changing it triggers `recompute_from(this_node)`.
    - A "View derived distribution" button — clicking it creates the *next* node.
 
 So the dropdown for node N's transform mode lives in node N's own layout (not its parent's). It just isn't shown for node 0.
 
-## Event flow and `recompute_chain()`
+## Event flow and `recompute_from(node)`
 
-This function is called whenever:
-- "Make distribution from events" is clicked
-- Events are added (after "Add events")
-- A node's bin edges change (fencepost added, equal-width edges added)
-- A node's mode dropdown changes
+This is a recursive function. It recomputes the given node and then recurses into its child (if any). This means changes only cascade downward from the point of change.
+
+It is called whenever:
+- "Make distribution from events" is clicked — calls `recompute_from(p_nodes[0])`.
+- A node's bin edges change — calls `recompute_from(that_node)`.
+- A node's mode dropdown changes — calls `recompute_from(that_node)`.
+
+It is **not** called when "Add events" is clicked. Adding events only updates the rug plot, same as current behavior. The user must click "Make distribution from events" to push events into the chain.
 
 Algorithm:
 
 ```python
-def recompute_chain():
-    """Walk the chain, transforming and binning events at each step."""
-    current_events = all_events  # raw events from the rug plot
+def recompute_from(node):
+    """Recompute this node's distribution and recurse into its child."""
+    # 1. Determine this node's input events
+    if node["parent"] is None:
+        # Root node: always receives raw events
+        node["events"] = all_events
+    elif node["mode"] == "passthru":
+        # Pass-thru: same events the parent received
+        node["events"] = node["parent"]["events"]
+    else:  # surprisal
+        parent = node["parent"]
+        parent_edges = np.array([-np.inf] + sorted(parent["fenceposts"]) + [np.inf])
+        _, _, parent_probs = compute_probs(parent_edges, parent["events"])
+        # For each event the parent received, compute -log2(P_parent(event))
+        interior = parent_edges[1:-1]
+        bin_indices = np.searchsorted(interior, parent["events"])
+        surprisals = -np.log2(parent_probs[bin_indices])
+        node["events"] = surprisals
 
-    for node in p_nodes:
-        # 1. Transform events based on mode
-        if node["mode"] == "passthru" or node["parent"] is None:
-            node["events"] = current_events
-        else:  # surprisal
-            parent = node["parent"]
-            parent_edges = np.array([-np.inf] + sorted(parent["fenceposts"]) + [np.inf])
-            parent_lefts, parent_rights, parent_probs = compute_probs(parent_edges, parent["events"])
-            # For each event the parent received, compute -log2(P_parent(event))
-            interior = parent_edges[1:-1]
-            bin_indices = np.searchsorted(interior, parent["events"])
-            surprisals = -np.log2(parent_probs[bin_indices])
-            node["events"] = surprisals
-            current_events = surprisals
+    # 2. Bin events using this node's own edges
+    edges = np.array([-np.inf] + sorted(node["fenceposts"]) + [np.inf])
+    lefts, rights, probs = compute_probs(edges, node["events"])
+    node["source"].data = make_source_data(
+        lefts, rights, probs,
+        x_start=rug_fig.x_range.start,
+        x_end=rug_fig.x_range.end,
+    )
+    idx = p_nodes.index(node)
+    node["figure"].title.text = f"P{idx+1}  |  Entropy = {entropy_bits(probs):.4f} bits"
 
-        # 2. Bin events using this node's own edges
-        edges = np.array([-np.inf] + sorted(node["fenceposts"]) + [np.inf])
-        lefts, rights, probs = compute_probs(edges, node["events"])
-        node["source"].data = make_source_data(
-            lefts, rights, probs,
-            x_start=rug_fig.x_range.start,
-            x_end=rug_fig.x_range.end,
-        )
-        idx = p_nodes.index(node)
-        node["figure"].title.text = f"P{idx+1}  |  Entropy = {entropy_bits(probs):.4f} bits"
-
-        # 3. Set current_events for the next node in chain
-        if node["mode"] == "passthru" or node["parent"] is None:
-            current_events = node["events"]
-        # (if surprisal, current_events was already set above)
+    # 3. Recurse into child
+    if node["child"] is not None:
+        recompute_from(node["child"])
 ```
 
 **Important detail in the chain**: each node passes to its child either its received events (if child mode is passthru) or surprisal values computed from its own model + its received events (if child mode is surprisal). The transform is determined by the *child's* mode, applied using the *parent's* model. So the transform actually happens at the start of the child's step, looking back at the parent.
@@ -132,19 +134,19 @@ def recompute_chain():
 
 When a bin edge is added to node N:
 - Update `node["fenceposts"]`
-- Call `recompute_chain()` (which recomputes all nodes — this is fine, it's cheap)
+- Call `recompute_from(node)` — recomputes this node and cascades to all descendants.
 
-The bin edge change in node N affects node N's distribution and also affects any child whose mode is "surprisal" (since the parent's model changed). Recomputing the whole chain handles this correctly.
+The bin edge change in node N affects node N's distribution and also affects any child whose mode is "surprisal" (since the parent's model changed). The recursive descent handles this correctly.
 
 ## "Make distribution from events" button
 
-Currently this button triggers `refresh_p()`. Change it to call `recompute_chain()`. If `p_nodes` is empty, do nothing (the user needs to click "View derived distribution" first to create a node).
+Currently this button triggers `refresh_p()`. Change it to call `recompute_from(p_nodes[0])`. If `p_nodes` is empty, do nothing (the user needs to click "View derived distribution" first to create a node).
 
-Actually, reconsider: it may be more intuitive if clicking "Make distribution from events" auto-creates the first p_node if none exist, then recomputes. Up to you — but at minimum it calls `recompute_chain()`.
+Actually, reconsider: it may be more intuitive if clicking "Make distribution from events" auto-creates the first p_node if none exist, then recomputes. Up to you — but at minimum it calls `recompute_from(p_nodes[0])`.
 
 ## "Clear events" button
 
-Clears `all_events`. Does NOT destroy p_nodes or their figures. Just clears the rug and sets each node's events to empty. Call `recompute_chain()` with empty events so all distributions reset to uniform.
+Clears `all_events`. Does NOT destroy p_nodes or their figures. Just clears the rug and sets each node's events to empty. Call `recompute_from(p_nodes[0])` (if any nodes exist) so all distributions reset to uniform.
 
 ## Infinite-edge JS callback
 
@@ -175,14 +177,14 @@ Out of scope for v1. Nodes are append-only.
 ## Summary of refactoring steps
 
 1. **Extract `make_p_node()` factory function** — creates all widgets, figure, source, callbacks for one node. Returns the p_node dict.
-2. **Extract `recompute_chain()`** — walks `p_nodes`, transforms events, updates sources and titles.
+2. **Extract `recompute_from(node)`** — recursive function that recomputes the given node and all descendants.
 3. **Refactor callbacks**:
-   - `cb_add_events` — unchanged, but also calls `recompute_chain()` after updating rug.
-   - `cb_make_dist` — calls `recompute_chain()`.
-   - `cb_clear_events` — clears events, calls `recompute_chain()`.
-   - Bin edge callbacks become per-node (created inside `make_p_node`), each calls `recompute_chain()`.
+   - `cb_add_events` — unchanged. Does NOT trigger recomputation (same as current behavior).
+   - `cb_make_dist` — calls `recompute_from(p_nodes[0])`.
+   - `cb_clear_events` — clears events, calls `recompute_from(p_nodes[0])`.
+   - Bin edge callbacks become per-node (created inside `make_p_node`), each calls `recompute_from(that_node)`.
    - New: `cb_derive(parent_node)` — creates a child node, appends to chain, updates layout.
-   - New: `cb_mode_change(node)` — when dropdown changes, calls `recompute_chain()`.
+   - New: `cb_mode_change(node)` — when dropdown changes, calls `recompute_from(node)`.
 4. **Remove global `fenceposts`** — each node has its own.
 5. **Remove global `p_source`, `p_fig`** — each node has its own.
 6. **Update layout** — root Column starts with just events section + initial derive button. Nodes are appended dynamically.
