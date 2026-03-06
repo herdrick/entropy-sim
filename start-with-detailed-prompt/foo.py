@@ -114,7 +114,7 @@ p_fig.yaxis.axis_label = "Probability"
 
 # JS callback: whenever the shared x_range changes, stretch infinite-edge bars
 # to fill the current viewport so they always look like they extend to ±∞.
-_range_cb = CustomJS(args=dict(source=p_column_data_source, x_range=rug_fig.x_range), code="""
+_range_callback = CustomJS(args=dict(source=p_column_data_source, x_range=rug_fig.x_range), code="""
     const data  = source.data;
     const li    = data['left_inf'];
     const ri    = data['right_inf'];
@@ -134,8 +134,8 @@ _range_cb = CustomJS(args=dict(source=p_column_data_source, x_range=rug_fig.x_ra
     data['width']  = width;
     source.change.emit();
 """)
-rug_fig.x_range.js_on_change('start', _range_cb)
-rug_fig.x_range.js_on_change('end',   _range_cb)
+rug_fig.x_range.js_on_change('start', _range_callback)
+rug_fig.x_range.js_on_change('end',   _range_callback)
 
 # ── Update helpers ────────────────────────────────────────────────────────────
 
@@ -178,36 +178,36 @@ edge_input = TextInput(
 edge_status = Div(text="", width=300, styles={"color": "red", "font-size": "13px"})
 
 equal_width_btn = Button(label="Add bin edges", button_type="default", width=120)
-ew_left_input = TextInput(placeholder="Left", width=80, visible=False)
-ew_right_input = TextInput(placeholder="Right", width=80, visible=False)
-ew_count_input = TextInput(placeholder="Count", width=80, visible=False)
-ew_submit_btn = Button(label="Add evenly spaced edges", button_type="success", width=200, visible=False)
-ew_preview = Div(text="", width=200, styles={"font-size": "13px", "line-height": "2.2"})
-ew_status = Div(text="", width=300, styles={"color": "red", "font-size": "13px"})
+equal_width_left_input = TextInput(placeholder="Left", width=80, visible=False)
+equal_width_right_input = TextInput(placeholder="Right", width=80, visible=False)
+equal_width_count_input = TextInput(placeholder="Count", width=80, visible=False)
+equal_width_submit_btn = Button(label="Add evenly spaced edges", button_type="success", width=200, visible=False)
+equal_width_preview = Div(text="", width=200, styles={"font-size": "13px", "line-height": "2.2"})
+equal_width_status = Div(text="", width=300, styles={"color": "red", "font-size": "13px"})
 
 # ── Callbacks ─────────────────────────────────────────────────────────────────
 
-def cb_ew_count_change(attr, old, new):
+def on_equal_width_count_change(attr, old, new):
     try:
         count = int(new)
         if count < 1:
             raise ValueError
     except ValueError:
-        ew_preview.text = ""
+        equal_width_preview.text = ""
         return
     # new edges that don't already exist
     try:
-        left = float(ew_left_input.value)
-        right = float(ew_right_input.value)
+        left = float(equal_width_left_input.value)
+        right = float(equal_width_right_input.value)
         step = (right - left) / (count + 1)
         new_edges = [left + step * (i + 1) for i in range(count)]
         new_unique = [e for e in new_edges if e not in interior_edges]
     except (ValueError, ZeroDivisionError):
         new_unique = list(range(count))  # assume all are new if left/right not set yet
     total_bins = len(interior_edges) + len(new_unique) + 1  # +1: n edges = n+1 bins
-    ew_preview.text = f"→ {total_bins} bins total"
+    equal_width_preview.text = f"→ {total_bins} bins total"
 
-def cb_add_events():
+def on_add_events():
     global all_events
     try:
         n = int(n_events_input.value)
@@ -221,12 +221,12 @@ def cb_add_events():
     refresh_rug()
 
 
-def cb_make_dist():
+def on_make_dist():
     # Build new P from current events; old P is replaced
     refresh_p(event_arr=all_events)
 
 
-def cb_clear_events():
+def on_clear_events():
     global all_events
     all_events = np.array([], dtype=float)
     rug_source.data = dict(x=[], y=[])
@@ -236,12 +236,12 @@ def cb_clear_events():
     # Note: do NOT change P or its rug overlay
 
 
-def cb_divide_bin():
+def on_divide_bin():
     edge_input.visible = not edge_input.visible
     edge_status.text = ""
 
 
-def cb_edge_input(attr, old, new):
+def on_edge_input(attr, old, new):
     global interior_edges
     val_str = new.strip()
     if not val_str:
@@ -264,58 +264,58 @@ def cb_edge_input(attr, old, new):
     refresh_p(event_arr=all_events)
 
 
-def cb_equal_width_toggle():
-    vis = not ew_left_input.visible
-    ew_left_input.visible = vis
-    ew_right_input.visible = vis
-    ew_count_input.visible = vis
-    ew_submit_btn.visible = vis
-    ew_status.text = ""
-    ew_preview.text = ""
+def on_equal_width_toggle():
+    vis = not equal_width_left_input.visible
+    equal_width_left_input.visible = vis
+    equal_width_right_input.visible = vis
+    equal_width_count_input.visible = vis
+    equal_width_submit_btn.visible = vis
+    equal_width_status.text = ""
+    equal_width_preview.text = ""
 
 
-def cb_equal_width_submit():
+def on_equal_width_submit():
     global interior_edges
     try:
-        left = float(ew_left_input.value)
-        right = float(ew_right_input.value)
-        count = int(ew_count_input.value)
+        left = float(equal_width_left_input.value)
+        right = float(equal_width_right_input.value)
+        count = int(equal_width_count_input.value)
     except ValueError:
-        ew_status.text = "Enter valid numbers for left, right, and count."
+        equal_width_status.text = "Enter valid numbers for left, right, and count."
         return
     if right <= left:
-        ew_status.text = "Right must be greater than left."
+        equal_width_status.text = "Right must be greater than left."
         return
     if count < 1:
-        ew_status.text = "Count must be at least 1."
+        equal_width_status.text = "Count must be at least 1."
         return
     step = (right - left) / (count + 1)
     new_edges = [left + step * (i + 1) for i in range(count)]
     added = [e for e in new_edges if e not in interior_edges]
     interior_edges.extend(added)
-    ew_status.text = f"Added {len(added)} edge(s)."
-    ew_preview.text = ""
-    ew_left_input.visible = False
-    ew_right_input.visible = False
-    ew_count_input.visible = False
-    ew_submit_btn.visible = False
+    equal_width_status.text = f"Added {len(added)} edge(s)."
+    equal_width_preview.text = ""
+    equal_width_left_input.visible = False
+    equal_width_right_input.visible = False
+    equal_width_count_input.visible = False
+    equal_width_submit_btn.visible = False
     refresh_p(event_arr=all_events)
 
 
-add_events_btn.on_click(cb_add_events)
-make_dist_btn.on_click(cb_make_dist)
-clear_events_btn.on_click(cb_clear_events)
-divide_bin_btn.on_click(cb_divide_bin)
+add_events_btn.on_click(on_add_events)
+make_dist_btn.on_click(on_make_dist)
+clear_events_btn.on_click(on_clear_events)
+divide_bin_btn.on_click(on_divide_bin)
 divide_bin_btn.js_on_click(CustomJS(args=dict(inp=edge_input), code="""
     setTimeout(() => {
         const el = inp.el?.querySelector?.('input');
         if (el) el.focus();
     }, 100);
 """))
-edge_input.on_change("value", cb_edge_input)
-equal_width_btn.on_click(cb_equal_width_toggle)
-ew_count_input.on_change("value_input", cb_ew_count_change)
-ew_submit_btn.on_click(cb_equal_width_submit)
+edge_input.on_change("value", on_edge_input)
+equal_width_btn.on_click(on_equal_width_toggle)
+equal_width_count_input.on_change("value_input", on_equal_width_count_change)
+equal_width_submit_btn.on_click(on_equal_width_submit)
 
 # ── Layout ────────────────────────────────────────────────────────────────────
 
@@ -330,7 +330,7 @@ top_controls = Row(
 )
 
 divide_row = Row(divide_bin_btn, edge_input, edge_status)
-equal_width_row = Row(equal_width_btn, ew_left_input, ew_right_input, ew_count_input, ew_submit_btn, ew_preview, ew_status)
+equal_width_row = Row(equal_width_btn, equal_width_left_input, equal_width_right_input, equal_width_count_input, equal_width_submit_btn, equal_width_preview, equal_width_status)
 
 root = Column(
     top_controls,

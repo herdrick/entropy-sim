@@ -23,12 +23,12 @@ p_node = {
     "edge_status": Div,
     "divide_bin_btn": Button,
     "equal_width_btn": Button,
-    "ew_left_input": TextInput,
-    "ew_right_input": TextInput,
-    "ew_count_input": TextInput,
-    "ew_submit_btn": Button,
-    "ew_preview": Div,
-    "ew_status": Div,
+    "equal_width_left_input": TextInput,
+    "equal_width_right_input": TextInput,
+    "equal_width_count_input": TextInput,
+    "equal_width_submit_btn": Button,
+    "equal_width_preview": Div,
+    "equal_width_status": Div,
     "layout": Column,              # the Column containing this node's figure + controls
 }
 ```
@@ -172,12 +172,12 @@ Out of scope for v1. Nodes are append-only.
 1. **Extract `make_p_node()` factory function** — creates all widgets, figure, source, callbacks for one node. Returns the p_node dict.
 2. **Extract `recompute_from(node)`** — recursive function that recomputes the given node and all descendants.
 3. **Refactor callbacks**:
-   - `cb_add_events` — unchanged. Does NOT trigger recomputation (same as current behavior).
-   - `cb_make_dist` — calls `recompute_from(p_nodes[0])`.
-   - `cb_clear_events` — clears events, calls `recompute_from(p_nodes[0])`.
+   - `on_add_events` — unchanged. Does NOT trigger recomputation (same as current behavior).
+   - `on_make_dist` — calls `recompute_from(p_nodes[0])`.
+   - `on_clear_events` — clears events, calls `recompute_from(p_nodes[0])`.
    - Bin edge callbacks become per-node (created inside `make_p_node`), each calls `recompute_from(that_node)`.
-   - New: `cb_derive(parent_node)` — creates a child node, appends to chain, updates layout.
-   - New: `cb_output_mode_change(node)` — when dropdown changes, updates `node["output_mode"]` and calls `recompute_from(node["child"])` if a child exists.
+   - New: `on_derive(parent_node)` — creates a child node, appends to chain, updates layout.
+   - New: `on_output_mode_change(node)` — when dropdown changes, updates `node["output_mode"]` and calls `recompute_from(node["child"])` if a child exists.
 4. **Remove global `interior_edges`** — each node has its own.
 5. **Remove global `p_column_data_source`, `p_fig`** — each node has its own.
 6. **Update layout** — root Column starts with just events section + initial derive button. Nodes are appended dynamically.
