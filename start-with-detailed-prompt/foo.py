@@ -21,9 +21,9 @@ def bin_edges():
     return np.array([-np.inf] + sorted(interior_edges) + [np.inf])
 
 
-def compute_probs(edges, event_arr):
+def compute_probabilities(edges, event_arr):
     """
-    Return (lefts, rights, probs) for a histogram with LaPlace smoothing.
+    Return probabilities. Uses LaPlace smoothing.
     Outer edges may be -inf / +inf; counting uses searchsorted on interior edges.
     """
     n_bins = len(edges) - 1
@@ -34,18 +34,17 @@ def compute_probs(edges, event_arr):
     else:
         counts = np.zeros(n_bins)
     smoothed = np.where(counts == 0, LAPLACE_ALPHA, counts)  # Laplace smoothing: only empty bins
-    probs = smoothed / smoothed.sum()
-    lefts = edges[:-1]
-    rights = edges[1:]
-    return lefts, rights, probs
+    return smoothed / smoothed.sum()
 
 
-def make_column_data_source_data(lefts, rights, probs, x_start=X_MIN, x_end=X_MAX):
+def make_column_data_source_data(edges, probs, x_start=X_MIN, x_end=X_MAX):
     """
     Build the dict for p_column_data_source.  Infinite outer edges are clipped to
     x_start/x_end for the initial render; left_inf/right_inf masks let the
     JS range callback extend them to the live viewport on every pan/zoom.
     """
+    lefts = edges[:-1]
+    rights = edges[1:]
     left_inf  = np.isneginf(lefts).astype(int)
     right_inf = np.isposinf(rights).astype(int)
     dl = np.where(left_inf,  x_start, lefts)
@@ -75,8 +74,8 @@ rug_source = ColumnDataSource(dict(x=[], y=[]))
 
 # P bar chart — seeded with the single uniform bin
 edges0 = bin_edges()
-lefts0, rights0, probs0 = compute_probs(edges0, all_events)
-p_column_data_source = ColumnDataSource(make_column_data_source_data(lefts0, rights0, probs0))
+probs0 = compute_probabilities(edges0, all_events)
+p_column_data_source = ColumnDataSource(make_column_data_source_data(edges0, probs0))
 
 # ── Figures ──────────────────────────────────────────────────────────────────
 
@@ -143,9 +142,9 @@ rug_fig.x_range.js_on_change('end',   _range_cb)
 def refresh_p(event_arr):
     """Recompute and redraw the P distribution."""
     edges = bin_edges()
-    lefts, rights, probs = compute_probs(edges, event_arr)
+    probs = compute_probabilities(edges, event_arr)
     p_column_data_source.data = make_column_data_source_data(
-        lefts, rights, probs,
+        edges, probs,
         x_start=rug_fig.x_range.start,
         x_end=rug_fig.x_range.end,
     )
