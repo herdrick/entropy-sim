@@ -23,7 +23,7 @@ Build a static web application (no backend) that is an interactive entropy and s
 
 This is the key panel. Render it with **Three.js using an orthographic camera**.
 
-- **1D mode (default):** Bins defined by `bin_edges` (initially 21 edges = 20 bins over [0, 1]). The leftmost and rightmost bins are open intervals extending to -/+infinity (see Binning section). Render as 3D bars (box geometries) viewed from directly above/front in orthographic projection so it looks like a flat 2D bar chart. The z-axis is degenerate — bars have zero depth. If the user rotates the camera (via OrbitControls), they see it's a flat chart — this is fine and expected.
+- **1D mode (default):** Bins defined by `bin_edges` (initially 19 edges = 20 bins over [0, 1], smallest edge is .1, greatest is .9). The leftmost and rightmost bins are open intervals extending to -/+infinity (see Binning section). Render as 3D bars (box geometries) viewed from directly above/front in orthographic projection so it looks like a flat 2D bar chart. The z-axis is degenerate — bars have zero depth. If the user rotates the camera (via OrbitControls), they see it's a flat chart — this is fine and expected.
 - Bar heights = probability (count / total). Update bar mesh heights each time an event arrives.
 - Show bin edge markers at 0 and 1.
 - The leftmost and rightmost bars are displayed at the same width as other bars by default, but visually stretch to fill the visible x-range when the user zooms out past [0, 1].
@@ -88,15 +88,7 @@ All entropy and surprisal values are in **bits** (log base 2).
 - The rightmost bin is **open on the right**: [bin_edges[n-1], +inf) where n = bin_edges.length - 1. It catches any value at or above the last interior edge, including values above 1.
 - The interior bins are half-open intervals: [bin_edges[i], bin_edges[i+1]).
 - All bins are treated uniformly in the entropy/surprisal math.
-
-### Bin index mapping
-```
-n_bins = bin_edges.length - 1
-
-if value < bin_edges[1]:           bin = 0              (leftmost open bin)
-if value >= bin_edges[n_bins - 1]: bin = n_bins - 1     (rightmost open bin)
-otherwise:                         bin = searchsorted(bin_edges, value) - 1, clamped to [0, n_bins - 1]
-```
+- **Bin assignment:** use binary search on `bin_edges` to find the bin. The leftmost bin catches everything below `bin_edges[1]`; the rightmost catches everything at or above `bin_edges[n-1]`.
 
 ### Model entropy (Laplace-smoothed)
 This is the entropy of the model built from observed data. Called `compute_model_entropy()`.
