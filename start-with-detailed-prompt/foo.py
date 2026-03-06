@@ -12,13 +12,13 @@ LAPLACE_ALPHA = 1  # pseudocount per bin
 
 # ── State ────────────────────────────────────────────────────────────────────
 all_events = np.array([], dtype=float)   # accumulated raw events
-fenceposts = []                          # sorted list of interior bin edges
+interior_edges = []                          # interior bin edges (sorted)
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def bin_edges():
-    """Full edge array: -inf, interior fenceposts (sorted), +inf."""
-    return np.array([-np.inf] + sorted(fenceposts) + [np.inf])
+    """Full edge array: -inf, interior edges (sorted), +inf."""
+    return np.array([-np.inf] + sorted(interior_edges) + [np.inf])
 
 
 def compute_probs(edges, event_arr):
@@ -27,7 +27,7 @@ def compute_probs(edges, event_arr):
     Outer edges may be -inf / +inf; counting uses searchsorted on interior edges.
     """
     n_bins = len(edges) - 1
-    interior = edges[1:-1]  # finite fenceposts only
+    interior = edges[1:-1]  # finite interior edges only
     if len(event_arr) > 0:
         indices = np.searchsorted(interior, event_arr)
         counts = np.bincount(indices, minlength=n_bins).astype(float)
@@ -171,12 +171,12 @@ make_dist_btn = Button(label="Make distribution from events", button_type="prima
 clear_events_btn = Button(label="Clear events", button_type="warning", width=120, disabled=True)
 
 divide_bin_btn = Button(label="Add one bin edge", button_type="default", width=120)
-fencepost_input = TextInput(
+edge_input = TextInput(
     placeholder="Edge value, then Enter",
     width=220,
     visible=False,
 )
-fencepost_status = Div(text="", width=300, styles={"color": "red", "font-size": "13px"})
+edge_status = Div(text="", width=300, styles={"color": "red", "font-size": "13px"})
 
 equal_width_btn = Button(label="Add bin edges", button_type="default", width=120)
 ew_left_input = TextInput(placeholder="Left", width=80, visible=False)
@@ -202,10 +202,10 @@ def cb_ew_count_change(attr, old, new):
         right = float(ew_right_input.value)
         step = (right - left) / (count + 1)
         new_edges = [left + step * (i + 1) for i in range(count)]
-        new_unique = [e for e in new_edges if e not in fenceposts]
+        new_unique = [e for e in new_edges if e not in interior_edges]
     except (ValueError, ZeroDivisionError):
         new_unique = list(range(count))  # assume all are new if left/right not set yet
-    total_bins = len(fenceposts) + len(new_unique) + 1  # +1: n edges = n+1 bins
+    total_bins = len(interior_edges) + len(new_unique) + 1  # +1: n edges = n+1 bins
     ew_preview.text = f"→ {total_bins} bins total"
 
 def cb_add_events():
@@ -238,29 +238,29 @@ def cb_clear_events():
 
 
 def cb_divide_bin():
-    fencepost_input.visible = not fencepost_input.visible
-    fencepost_status.text = ""
+    edge_input.visible = not edge_input.visible
+    edge_status.text = ""
 
 
-def cb_fencepost(attr, old, new):
-    global fenceposts
+def cb_edge_input(attr, old, new):
+    global interior_edges
     val_str = new.strip()
     if not val_str:
         return
     try:
         val = float(val_str)
     except ValueError:
-        fencepost_status.text = f"'{val_str}' is not a valid number."
-        fencepost_input.value = ""
+        edge_status.text = f"'{val_str}' is not a valid number."
+        edge_input.value = ""
         return
-    if val in fenceposts:
-        fencepost_status.text = f"{val} is already a fencepost."
-        fencepost_input.value = ""
+    if val in interior_edges:
+        edge_status.text = f"{val} is already a bin edge."
+        edge_input.value = ""
         return
-    fenceposts.append(val)
-    fencepost_status.text = f"Added fencepost at {val}."
-    fencepost_input.value = ""
-    fencepost_input.visible = False
+    interior_edges.append(val)
+    edge_status.text = f"Added bin edge at {val}."
+    edge_input.value = ""
+    edge_input.visible = False
     # Recompute P — keep using same events if any
     refresh_p(event_arr=all_events)
 
@@ -276,7 +276,7 @@ def cb_equal_width_toggle():
 
 
 def cb_equal_width_submit():
-    global fenceposts
+    global interior_edges
     try:
         left = float(ew_left_input.value)
         right = float(ew_right_input.value)
@@ -292,8 +292,8 @@ def cb_equal_width_submit():
         return
     step = (right - left) / (count + 1)
     new_edges = [left + step * (i + 1) for i in range(count)]
-    added = [e for e in new_edges if e not in fenceposts]
-    fenceposts.extend(added)
+    added = [e for e in new_edges if e not in interior_edges]
+    interior_edges.extend(added)
     ew_status.text = f"Added {len(added)} edge(s)."
     ew_preview.text = ""
     ew_left_input.visible = False
@@ -307,13 +307,13 @@ add_events_btn.on_click(cb_add_events)
 make_dist_btn.on_click(cb_make_dist)
 clear_events_btn.on_click(cb_clear_events)
 divide_bin_btn.on_click(cb_divide_bin)
-divide_bin_btn.js_on_click(CustomJS(args=dict(inp=fencepost_input), code="""
+divide_bin_btn.js_on_click(CustomJS(args=dict(inp=edge_input), code="""
     setTimeout(() => {
         const el = inp.el?.querySelector?.('input');
         if (el) el.focus();
     }, 100);
 """))
-fencepost_input.on_change("value", cb_fencepost)
+edge_input.on_change("value", cb_edge_input)
 equal_width_btn.on_click(cb_equal_width_toggle)
 ew_count_input.on_change("value_input", cb_ew_count_change)
 ew_submit_btn.on_click(cb_equal_width_submit)
@@ -330,7 +330,7 @@ top_controls = Row(
     clear_events_btn,
 )
 
-divide_row = Row(divide_bin_btn, fencepost_input, fencepost_status)
+divide_row = Row(divide_bin_btn, edge_input, edge_status)
 equal_width_row = Row(equal_width_btn, ew_left_input, ew_right_input, ew_count_input, ew_submit_btn, ew_preview, ew_status)
 
 root = Column(

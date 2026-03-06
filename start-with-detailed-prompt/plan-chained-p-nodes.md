@@ -12,7 +12,7 @@ A `p_node` is a dict representing one P distribution in the chain. Structure:
 p_node = {
     "parent": None | p_node,       # None for the first node
     "mode": "passthru" | "surprisal",  # how events are transformed from parent
-    "fenceposts": [],               # this node's interior bin edges (list of float)
+    "interior_edges": [],               # this node's interior bin edges (list of float)
     "events": np.array([]),         # the events this node received (after transform)
     "figure": bokeh Figure,         # the bar chart figure for this node
     "source": ColumnDataSource,     # data source for the bar chart
@@ -20,8 +20,8 @@ p_node = {
     # UI widgets owned by this node:
     "derive_dropdown": Select,      # "Pass events thru as they are" / "Surprisal"
     "derive_btn": Button,           # "View derived distribution"
-    "fencepost_input": TextInput,
-    "fencepost_status": Div,
+    "edge_input": TextInput,
+    "edge_status": Div,
     "divide_bin_btn": Button,
     "equal_width_btn": Button,
     "ew_left_input": TextInput,
@@ -58,7 +58,7 @@ When the user clicks "View derived distribution" (on the last node in the chain,
 3. Set `mode`:
    - First node: always `"passthru"` (no dropdown is shown for it).
    - Subsequent nodes: read from the dropdown that was next to the button that was clicked. That dropdown is part of the *parent* node's UI... actually, see "UI per node" below for the cleaner version.
-4. Copy `fenceposts` from parent (or `[]` if first node).
+4. Copy `interior_edges` from parent (or `[]` if first node).
 5. Create the bokeh figure, source, and all widget instances for this node.
 6. Append the node's layout to the root Column.
 7. Append to `p_nodes`.
@@ -104,7 +104,7 @@ def recompute_from(node):
         node["events"] = node["parent"]["events"]
     else:  # surprisal
         parent = node["parent"]
-        parent_edges = np.array([-np.inf] + sorted(parent["fenceposts"]) + [np.inf])
+        parent_edges = np.array([-np.inf] + sorted(parent["interior_edges"]) + [np.inf])
         _, _, parent_probs = compute_probs(parent_edges, parent["events"])
         # For each event the parent received, compute -log2(P_parent(event))
         interior = parent_edges[1:-1]
@@ -113,7 +113,7 @@ def recompute_from(node):
         node["events"] = surprisals
 
     # 2. Bin events using this node's own edges
-    edges = np.array([-np.inf] + sorted(node["fenceposts"]) + [np.inf])
+    edges = np.array([-np.inf] + sorted(node["interior_edges"]) + [np.inf])
     lefts, rights, probs = compute_probs(edges, node["events"])
     node["source"].data = make_source_data(
         lefts, rights, probs,
@@ -133,7 +133,7 @@ def recompute_from(node):
 ## Updating bin edges
 
 When a bin edge is added to node N:
-- Update `node["fenceposts"]`
+- Update `node["interior_edges"]`
 - Call `recompute_from(node)` — recomputes this node and cascades to all descendants.
 
 The bin edge change in node N affects node N's distribution and also affects any child whose mode is "surprisal" (since the parent's model changed). The recursive descent handles this correctly.
@@ -185,7 +185,7 @@ Out of scope for v1. Nodes are append-only.
    - Bin edge callbacks become per-node (created inside `make_p_node`), each calls `recompute_from(that_node)`.
    - New: `cb_derive(parent_node)` — creates a child node, appends to chain, updates layout.
    - New: `cb_mode_change(node)` — when dropdown changes, calls `recompute_from(node)`.
-4. **Remove global `fenceposts`** — each node has its own.
+4. **Remove global `interior_edges`** — each node has its own.
 5. **Remove global `p_source`, `p_fig`** — each node has its own.
 6. **Update layout** — root Column starts with just events section + initial derive button. Nodes are appended dynamically.
-7. **Keep `compute_probs`, `make_source_data`, `entropy_bits`, `bar_colors`, `bin_edges` as-is** (make `bin_edges` take a fenceposts arg instead of using global).
+7. **Keep `compute_probs`, `make_source_data`, `entropy_bits`, `bar_colors`, `bin_edges` as-is** (make `bin_edges` take an interior_edges arg instead of using global).

@@ -102,11 +102,11 @@ test.describe('infinite bin edges track viewport', () => {
     expect(wide.right[wide.right.length - 1]).toBeCloseTo(500, 1);
   });
 
-  test('fencepost creates two bins; outer edges still track viewport', async ({ page }) => {
-    // Reveal the fencepost input and add a fencepost at 0
-    await page.click('button:has-text("Divide a bin")');
-    await page.fill('input[placeholder*="Fencepost"]', '0');
-    await page.press('input[placeholder*="Fencepost"]', 'Enter');
+  test('bin edge creates two bins; outer edges still track viewport', async ({ page }) => {
+    // Reveal the edge input and add a bin edge at 0
+    await page.click('button:has-text("Add one bin edge")');
+    await page.fill('input[placeholder*="Edge"]', '0');
+    await page.press('input[placeholder*="Edge"]', 'Enter');
     await page.waitForTimeout(500); // round-trip to Python server
 
     await setXRange(page, ids, -50, 50);
@@ -114,12 +114,12 @@ test.describe('infinite bin edges track viewport', () => {
 
     expect(state.left.length).toBe(2);
 
-    // Left bin: left edge tracks viewport, right edge is the fencepost
+    // Left bin: left edge tracks viewport, right edge is the bin edge
     expect(state.leftInf[0]).toBe(1);
     expect(state.left[0]).toBeCloseTo(-50, 1);
     expect(state.right[0]).toBeCloseTo(0, 3);
 
-    // Right bin: left edge is the fencepost, right edge tracks viewport
+    // Right bin: left edge is the bin edge, right edge tracks viewport
     expect(state.rightInf[1]).toBe(1);
     expect(state.left[1]).toBeCloseTo(0, 3);
     expect(state.right[1]).toBeCloseTo(50, 1);

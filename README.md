@@ -18,7 +18,7 @@ A desktop GUI (matplotlib/TkAgg) that streams samples from one of six hidden pro
 
 ### [start-with-detailed-prompt/](./start-with-detailed-prompt/README.md) — Entropy & surprisal explorer
 
-A browser-based Bokeh server app for building probability distributions from scratch. Generate events, bin them however you like by adding fenceposts, and watch Shannon entropy update in the chart title with each change. Outermost bins extend to infinity; empty bins receive Laplace smoothing so the distribution is always well-defined.
+A browser-based Bokeh server app for building probability distributions from scratch. Generate events, bin them however you like by adding bin edges, and watch Shannon entropy update in the chart title with each change. Outermost bins extend to infinity; empty bins receive Laplace smoothing so the distribution is always well-defined.
 
 **Stack:** Python, numpy, scipy, Bokeh (browser UI); Playwright (optional tests)
 

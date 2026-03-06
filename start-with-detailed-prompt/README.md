@@ -17,7 +17,7 @@ You interact with it through four controls:
 | **n =** (text input) | Sets how many events to generate (default: 1000). |
 | **Make distribution from events** | Bins the current events and redraws the probability bar chart. |
 | **Clear events** | Wipes the rug plot; leaves the distribution unchanged. |
-| **Divide a bin** | Reveals a text input where you type a fencepost value (e.g. `0.5`) and press Enter. This splits the bin that contains that value, creating a new bin edge. The distribution is immediately recomputed. |
+| **Divide a bin** | Reveals a text input where you type a bin edge value (e.g. `0.5`) and press Enter. This splits the bin that contains that value, creating a new bin edge. The distribution is immediately recomputed. |
 
 The outermost bins always extend to negative and positive infinity. When you pan or zoom the chart, those bins visually stretch to fill the viewport, making it clear they are unbounded.
 
@@ -90,7 +90,7 @@ A typical workflow:
 1. Click **Add events** to generate 1000 random samples (uniform between 0 and 1). The rug plot fills with tick marks.
 2. Click **Make distribution from events** to bin those events and update the bar chart. Entropy will increase from 0.
 3. Click **Divide a bin**, type `0.5`, and press Enter. The single bar splits at 0.5 into two bins and the entropy updates.
-4. Keep adding fenceposts to subdivide the distribution further. Each split that creates more-equal bins raises entropy; splits that isolate very few events may raise or lower it depending on the data.
+4. Keep adding bin edges to subdivide the distribution further. Each split that creates more-equal bins raises entropy; splits that isolate very few events may raise or lower it depending on the data.
 5. Click **Add events** again to accumulate more data and re-run **Make distribution from events** to see how a larger sample affects the shape.
 
 Pan and zoom with your mouse — the outermost bars will always stretch to fill the visible range.
