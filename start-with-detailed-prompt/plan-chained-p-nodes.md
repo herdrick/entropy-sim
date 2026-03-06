@@ -99,9 +99,9 @@ def recompute_from(node):
     """
     # 1. Bin events using this node's own edges
     edges = np.array([-np.inf] + sorted(node["interior_edges"]) + [np.inf])
-    lefts, rights, probs = compute_probs(edges, node["events"])
-    node["source"].data = make_source_data(
-        lefts, rights, probs,
+    probs = compute_probabilities(edges, node["events"])
+    node["source"].data = make_column_data_source_data(
+        edges, probs,
         x_start=rug_fig.x_range.start,
         x_end=rug_fig.x_range.end,
     )
@@ -179,6 +179,6 @@ Out of scope for v1. Nodes are append-only.
    - New: `cb_derive(parent_node)` — creates a child node, appends to chain, updates layout.
    - New: `cb_output_mode_change(node)` — when dropdown changes, updates `node["output_mode"]` and calls `recompute_from(node["child"])` if a child exists.
 4. **Remove global `interior_edges`** — each node has its own.
-5. **Remove global `p_source`, `p_fig`** — each node has its own.
+5. **Remove global `p_column_data_source`, `p_fig`** — each node has its own.
 6. **Update layout** — root Column starts with just events section + initial derive button. Nodes are appended dynamically.
-7. **Keep `compute_probs`, `make_source_data`, `entropy_bits`, `bar_colors`, `bin_edges` as-is** (make `bin_edges` take an interior_edges arg instead of using global).
+7. **Keep `compute_probabilities`, `make_column_data_source_data`, `entropy_bits`, `bar_colors`, `bin_edges` as-is** (make `bin_edges` take an interior_edges arg instead of using global).
