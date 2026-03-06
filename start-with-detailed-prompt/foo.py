@@ -33,7 +33,7 @@ def compute_probabilities(edges, event_arr):
         counts = np.bincount(indices, minlength=n_bins).astype(float)
     else:
         counts = np.zeros(n_bins)
-    smoothed = np.where(counts == 0, LAPLACE_ALPHA, counts)  # Laplace smoothing: only empty bins
+    smoothed = counts + LAPLACE_ALPHA
     return smoothed / smoothed.sum()
 
 
