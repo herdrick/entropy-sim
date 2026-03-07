@@ -21,12 +21,12 @@ You interact with it through four controls:
 
 The outermost bins always extend to negative and positive infinity. When you pan or zoom the chart, those bins visually stretch to fill the viewport, making it clear they are unbounded.
 
-**Laplace smoothing** is applied to empty bins only: any bin with zero observed events receives a pseudocount of 1 so the distribution stays well-defined.
+**Laplace smoothing** is used: each bin gets a pseudocount added to its count of events. This, combined with the outermost bins extending to negative and positive infinity, prevents P of zero for any possible event.
 
 ## Prerequisites
 
 - Python 3.8 or newer
-- Node.js and npm (only needed to run the Playwright tests; not required to run the app itself)
+- If you wish to run the tests, you will also need Node.js and npm.
 
 ## Installation
 
@@ -68,14 +68,6 @@ Bokeh will print a URL to the terminal, typically:
 
 ```
 http://localhost:5006/foo
-```
-
-Open that URL in your browser. The app is ready to use immediately.
-
-To specify a different port:
-
-```bash
-bokeh serve foo.py --port 5007
 ```
 
 ## What to Expect
