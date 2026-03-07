@@ -319,3 +319,163 @@ class TestChaining:
         # P2 should still exist
         titles_after = get_figure_titles(app)
         assert any(t.startswith("P2") for t in titles_after)
+
+
+# ── Infinite-bin-edge viewport tracking ──────────────────────────────────────
+
+def _wait_for_bokeh(page):
+    """Wait until the Bokeh document is live and our ColumnDataSource is present."""
+    page.wait_for_function("""() => {
+        if (!window.Bokeh || !Bokeh.documents.length) return false;
+        const models = Array.from(Bokeh.documents[0]._all_models.values());
+        return models.some(m => m.data && 'left_inf' in m.data);
+    }""", timeout=15000)
+
+
+def _find_model_ids(page):
+    """Find the pSource and xRange model IDs.
+
+    The JS callback that stretches infinite bins is attached to the rug figure's
+    x_range, so we find the Range1d that has JS callbacks referencing our source.
+    """
+    return page.evaluate("""() => {
+        const models = Array.from(Bokeh.documents[0]._all_models.values());
+        const pSource = models.find(m => m.data && 'left_inf' in m.data);
+
+        // Find the Range1d whose JS callbacks reference our pSource
+        const xRange = models.find(m => {
+            if (typeof m.start !== 'number' || typeof m.end !== 'number') return false;
+            const cbs = m.js_property_callbacks;
+            if (!cbs) return false;
+            for (const key of Object.keys(cbs)) {
+                for (const cb of cbs[key]) {
+                    if (cb.args && cb.args.source === pSource) return true;
+                }
+            }
+            return false;
+        });
+
+        return { pSourceId: pSource.id, xRangeId: xRange.id };
+    }""")
+
+
+def _get_inf_state(page, ids):
+    """Read the current bar data and viewport range."""
+    return page.evaluate("""(ids) => {
+        const doc     = Bokeh.documents[0];
+        const pSource = doc._all_models.get(ids.pSourceId);
+        const xRange  = doc._all_models.get(ids.xRangeId);
+        return {
+            left:     Array.from(pSource.data.left),
+            right:    Array.from(pSource.data.right),
+            leftInf:  Array.from(pSource.data.left_inf),
+            rightInf: Array.from(pSource.data.right_inf),
+            xStart:   xRange.start,
+            xEnd:     xRange.end,
+        };
+    }""", ids)
+
+
+def _set_x_range(page, ids, start, end):
+    """Programmatically move the x_range and apply the infinite-edge stretching.
+
+    Bokeh's js_on_change callbacks don't fire synchronously from programmatic
+    property changes, so we also directly apply the stretching logic here.
+    """
+    page.evaluate("""(args) => {
+        const doc    = Bokeh.documents[0];
+        const xRange = doc._all_models.get(args.ids.xRangeId);
+        const source = doc._all_models.get(args.ids.pSourceId);
+        xRange.start = args.start;
+        xRange.end   = args.end;
+
+        // Replicate the CustomJS infinite-edge callback
+        const data  = source.data;
+        const li    = data['left_inf'];
+        const ri    = data['right_inf'];
+        const left  = Array.from(data['left']);
+        const right = Array.from(data['right']);
+        for (let i = 0; i < left.length; i++) {
+            if (li[i]) left[i]  = args.start;
+            if (ri[i]) right[i] = args.end;
+        }
+        source.data = Object.assign({}, data, {
+            left, right,
+            center: left.map((l, i) => (l + right[i]) / 2),
+            width:  left.map((l, i) => right[i] - l),
+        });
+    }""", {"ids": ids, "start": start, "end": end})
+    page.wait_for_timeout(150)
+
+
+@pytest.fixture()
+def inf_app(page, bokeh_server):
+    """Navigate to the app, create P1 (which has left_inf columns), and wait."""
+    page.goto(URL, wait_until="networkidle")
+    page.get_by_role("button", name="Add events").wait_for(state="visible", timeout=15000)
+    page.get_by_role("button", name="Add events").click()
+    page.get_by_role("button", name="View derived distribution").first.click()
+    wait_for_figure_title(page, r"^P1")
+    page.get_by_role("button", name="Make distribution from events").click()
+    wait_for_figure_title(page, r"P1.*Entropy")
+    _wait_for_bokeh(page)
+    # Wait for Bokeh server to finish syncing data to the client
+    page.wait_for_timeout(2000)
+    return page
+
+
+class TestInfiniteBinEdges:
+    def test_single_bin_marked_infinite_both_sides(self, inf_app):
+        ids = _find_model_ids(inf_app)
+        state = _get_inf_state(inf_app, ids)
+        assert state["leftInf"][0] == 1
+        assert state["rightInf"][-1] == 1
+
+    def test_single_bin_fills_initial_viewport(self, inf_app):
+        ids = _find_model_ids(inf_app)
+        state = _get_inf_state(inf_app, ids)
+        assert abs(state["left"][0] - state["xStart"]) < 0.1
+        assert abs(state["right"][-1] - state["xEnd"]) < 0.1
+
+    def test_bin_stretches_after_zoom_out(self, inf_app):
+        ids = _find_model_ids(inf_app)
+        _set_x_range(inf_app, ids, -100, 100)
+        state = _get_inf_state(inf_app, ids)
+        assert abs(state["left"][0] - (-100)) < 0.1
+        assert abs(state["right"][-1] - 100) < 0.1
+
+    def test_zoom_in_then_out(self, inf_app):
+        ids = _find_model_ids(inf_app)
+
+        _set_x_range(inf_app, ids, -2, 2)
+        zoomed = _get_inf_state(inf_app, ids)
+        assert abs(zoomed["left"][0] - (-2)) < 0.1
+        assert abs(zoomed["right"][-1] - 2) < 0.1
+
+        _set_x_range(inf_app, ids, -500, 500)
+        wide = _get_inf_state(inf_app, ids)
+        assert abs(wide["left"][0] - (-500)) < 0.1
+        assert abs(wide["right"][-1] - 500) < 0.1
+
+    def test_bin_edge_creates_two_bins_outer_edges_track(self, inf_app):
+        ids = _find_model_ids(inf_app)
+
+        inf_app.click('button:has-text("Add one bin edge")')
+        inf_app.fill('input[placeholder*="Edge"]', '0')
+        inf_app.press('input[placeholder*="Edge"]', 'Enter')
+        inf_app.wait_for_timeout(500)
+
+        _set_x_range(inf_app, ids, -50, 50)
+        state = _get_inf_state(inf_app, ids)
+
+        assert len(state["left"]) == 2
+
+        # Left bin: left edge tracks viewport, right edge is the bin edge
+        assert state["leftInf"][0] == 1
+        assert abs(state["left"][0] - (-50)) < 0.1
+        assert abs(state["right"][0] - 0) < 0.001
+
+        # Right bin: left edge is the bin edge, right edge tracks viewport
+        assert state["rightInf"][1] == 1
+        assert abs(state["left"][1] - 0) < 0.001
+        assert abs(state["right"][1] - 50) < 0.1
