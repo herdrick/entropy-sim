@@ -1,3 +1,4 @@
+# run with "bokeh serve start-with-detailed-prompt/foo.py --dev"
 import numpy as np
 from dataclasses import dataclass, field
 from typing import Optional
