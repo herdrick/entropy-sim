@@ -2,3 +2,5 @@
 numpy
 scipy
 bokeh
+pytest
+pytest-playwright
