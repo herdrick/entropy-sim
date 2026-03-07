@@ -26,7 +26,7 @@ The outermost bins always extend to negative and positive infinity. When you pan
 ## Prerequisites
 
 - Python 3.8 or newer
-- Node.js and npm (only needed to run the Playwright tests; not required to run the app itself)
+- If you wish to run the tests, you will also need Node.js and npm.
 
 ## Installation
 
