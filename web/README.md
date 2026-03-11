@@ -1,6 +1,6 @@
 # Entropy Simulator (Web Version)
 
-A browser-based interactive simulator for exploring information theory. It samples from a hidden probability distribution, builds a live histogram, and plots how the model's entropy and per-event surprisal evolve over time.
+A browser-based interactive simulator for exploring information theory. It samples from a hidden source of single-field numerical data, builds a live histogram / probability distribution, and plots how that distribution/model's entropy and per-event surprisal change over time.
 
 ## Running it
 
