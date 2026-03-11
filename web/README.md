@@ -9,12 +9,12 @@ This is a static site with no build step. Serve the `web/` directory with any HT
 ```bash
 # Python (from the repo root or from web/)
 python -m http.server 8080 --directory web/
-
-# Then open:
-# http://localhost:8080
 ```
+Then open http://localhost:8080
 
-Any other static file server (Node's `npx serve web/`, Caddy, nginx, etc.) works equally well.
+## No dependencies to install
+
+All libraries (Three.js, Chart.js, jStat) are loaded from CDN at runtime.
 
 ## What you'll see
 
@@ -36,6 +36,3 @@ Four panels update in real time:
 - **Mystery Source** — switch between six sources (Uniform, several Beta distributions, and a mixture)
 - **Add Event** — type a value in [0, 1] and press Enter or click Add to inject it manually
 
-## No dependencies to install
-
-All libraries (Three.js, Chart.js, jStat) are loaded from CDN at runtime.
