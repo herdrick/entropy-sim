@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Entropy Simulator</title>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #1a1a2e;
+      color: #ccc;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    h1 {
+      text-align: center;
+      padding: 8px 0 4px;
+      font-size: 1.2rem;
+      color: #fff;
+      letter-spacing: 0.5px;
+    }
+
+    .app-layout {
+      display: grid;
+      grid-template-columns: 1fr 220px;
+      grid-template-rows: 1fr;
+      height: calc(100vh - 40px);
+      gap: 8px;
+      padding: 0 8px 8px;
+    }
+
+    .panels {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      gap: 8px;
+      min-height: 0;
+    }
+
+    .panel {
+      background: #16213e;
+      border-radius: 8px;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .panel-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 4px;
+      flex-shrink: 0;
+    }
+
+    .panel-body {
+      flex: 1;
+      position: relative;
+      min-height: 0;
+    }
+
+    .panel-body canvas {
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    /* Histogram (Three.js) container */
+    #histogram-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+
+    #histogram-container canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    #resetCameraBtn {
+      position: absolute;
+      top: 6px;
+      left: 6px;
+      background: rgba(22, 33, 62, 0.9);
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 14px;
+      cursor: pointer;
+      z-index: 100;
+      color: #ccc;
+      transition: background 0.2s;
+    }
+
+    #resetCameraBtn:hover {
+      background: rgba(22, 33, 62, 1);
+      border-color: #e94560;
+    }
+
+    #controls3d {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      background: rgba(22, 33, 62, 0.85);
+      padding: 6px 8px;
+      border-radius: 4px;
+      font-size: 0.65rem;
+      color: #999;
+      z-index: 100;
+      line-height: 1.5;
+    }
+
+    /* Latest event panel */
+    #latest-event-content {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      height: 100%;
+      padding: 16px;
+    }
+
+    .event-stat {
+      font-family: 'SF Mono', 'Consolas', monospace;
+      font-size: 1rem;
+      margin: 6px 0;
+      color: #ccc;
+    }
+
+    .event-label {
+      color: #e94560;
+      font-weight: 600;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      background: #16213e;
+      border-radius: 8px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+    }
+
+    .sidebar h2 {
+      font-size: 0.9rem;
+      color: #fff;
+      margin-bottom: 2px;
+    }
+
+    .sidebar button {
+      width: 100%;
+      padding: 8px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+
+    #btn-play {
+      background: #0f3460;
+      color: #fff;
+    }
+    #btn-play:hover { background: #e94560; }
+
+    #btn-reset {
+      background: #0f3460;
+      color: #fff;
+    }
+    #btn-reset:hover { background: #e94560; }
+
+    #btn-reveal {
+      background: #533483;
+      color: #fff;
+    }
+    #btn-reveal:hover { background: #e94560; }
+
+    .btn-row {
+      display: flex;
+      gap: 6px;
+    }
+
+    .btn-row button {
+      flex: 1;
+    }
+
+    /* Speed slider */
+    .slider-group label {
+      font-size: 0.8rem;
+      color: #aaa;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .slider-group input[type="range"] {
+      width: 100%;
+      accent-color: #e94560;
+      margin-top: 4px;
+    }
+
+    /* Source radios */
+    .source-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .source-group label {
+      font-size: 0.8rem;
+      cursor: pointer;
+      padding: 3px 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .source-group input[type="radio"] {
+      accent-color: #e94560;
+    }
+
+    /* Manual event */
+    .manual-event {
+      display: flex;
+      gap: 4px;
+    }
+
+    .manual-event input {
+      flex: 1;
+      background: #0a0f1e;
+      border: 1px solid #333;
+      border-radius: 4px;
+      color: #fff;
+      padding: 6px;
+      font-size: 0.8rem;
+    }
+
+    .manual-event input:focus {
+      outline: none;
+      border-color: #e94560;
+    }
+
+    #btn-add-event {
+      background: #0f3460;
+      color: #fff;
+      padding: 6px 10px;
+      white-space: nowrap;
+      width: auto;
+    }
+    #btn-add-event:hover { background: #e94560; }
+  </style>
+</head>
+<body>
+  <h1>Entropy Simulator</h1>
+  <div class="app-layout">
+    <div class="panels">
+      <!-- Panel 1: Histogram -->
+      <div class="panel">
+        <div class="panel-title">Live Histogram</div>
+        <div class="panel-body">
+          <div id="histogram-container">
+            <button id="resetCameraBtn" title="Reset camera">&#x21ba;</button>
+            <div id="controls3d">
+              <strong>3D Controls:</strong><br>
+              Orbit: Left drag<br>
+              Zoom: Scroll<br>
+              Pan: Right drag
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Panel 2: Entropy over time -->
+      <div class="panel">
+        <div class="panel-title">Entropy Over Time</div>
+        <div class="panel-body">
+          <canvas id="entropy-canvas"></canvas>
+        </div>
+      </div>
+
+      <!-- Panel 3: Surprisal stream -->
+      <div class="panel">
+        <div class="panel-title">Surprisal Stream</div>
+        <div class="panel-body">
+          <canvas id="surprisal-canvas"></canvas>
+        </div>
+      </div>
+
+      <!-- Panel 4: Latest event -->
+      <div class="panel">
+        <div class="panel-title">Latest Event</div>
+        <div class="panel-body">
+          <div id="latest-event-content">
+            <div class="event-stat">No events yet</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Controls sidebar -->
+    <div class="sidebar">
+      <div class="btn-row">
+        <button id="btn-play">Play</button>
+        <button id="btn-reset">Reset</button>
+      </div>
+      <button id="btn-reveal">Reveal Distribution</button>
+
+      <div class="slider-group">
+        <label>
+          <span>Speed</span>
+          <span id="speed-value">10</span> / sec
+        </label>
+        <input type="range" id="speed-slider" min="1" max="1000" value="10">
+      </div>
+
+      <div>
+        <h2>Mystery Source</h2>
+        <div class="source-group">
+          <label><input type="radio" name="source" value="Source A" checked> Source A</label>
+          <label><input type="radio" name="source" value="Source B"> Source B</label>
+          <label><input type="radio" name="source" value="Source C"> Source C</label>
+          <label><input type="radio" name="source" value="Source D"> Source D</label>
+          <label><input type="radio" name="source" value="Source E"> Source E</label>
+          <label><input type="radio" name="source" value="Source F"> Source F</label>
+        </div>
+      </div>
+
+      <div>
+        <h2>Add Event</h2>
+        <div class="manual-event">
+          <input type="text" id="event-input" placeholder="e.g. 0.42">
+          <button id="btn-add-event">Add</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
