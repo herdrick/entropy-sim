@@ -105,7 +105,7 @@ def recompute_from(node):
         x_end=node.figure.x_range.end,
     )
     idx = node_index(node)
-    node.figure.title.text = f"P{idx+1}  |  Entropy = {entropy_bits(probs):.4f} bits"
+    node.figure.title.text = f"P{idx+1}  |  entropy = {entropy_bits(probs):.4f} bits"
 
     # Update this node's rug plot
     node.rug_source.data = dict(x=node.events, y=np.zeros(len(node.events)))
@@ -355,8 +355,7 @@ def create_child_node(parent_node):
     root_col.children.append(new_node.layout)
 
     # Recompute so it shows a distribution
-    if len(new_node.events) > 0:
-        recompute_from(new_node)
+    recompute_from(new_node)
 
 
 # ── Top-level event controls ─────────────────────────────────────────────────
