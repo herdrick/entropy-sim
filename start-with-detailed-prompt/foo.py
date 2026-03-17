@@ -29,6 +29,7 @@ class PNode:
     source: ColumnDataSource = None
     rug_fig: object = None
     rug_source: ColumnDataSource = None
+    edge_line_source: ColumnDataSource = None
     child: Optional["PNode"] = None
     # UI widgets
     derive_dropdown: Select = None
@@ -129,6 +130,10 @@ def recompute_from(node):
         f"  |  with Laplace smoothing = {entropy_bits(probs):.4f} bits"
     )
 
+    # Update bin edge vertical lines (interior edges only, not ±inf)
+    interior = sorted(node.interior_edges)
+    node.edge_line_source.data = dict(x=interior)
+
     # Update this node's rug plot
     node.rug_source.data = dict(x=node.events, y=np.zeros(len(node.events)))
     node.rug_fig.title.text = f"Events ({len(node.events)})"
@@ -180,8 +185,14 @@ def make_p_node(initial_events):
     node.figure.quad(
         left="left", right="right", top="top", bottom=0,
         source=node.source,
-        fill_color="color", line_color="white", alpha=0.8,
+        fill_color="color", line_color="black", alpha=0.8,
     )
+    # Vertical lines at bin edges (full plot height)
+    node.edge_line_source = ColumnDataSource(dict(x=[]))
+    node.figure.ray(x="x", y=0, length=0, angle=np.pi/2,
+                    source=node.edge_line_source,
+                    line_color="black", line_width=1)
+
     node.figure.xaxis.axis_label = "Value"
     node.figure.yaxis.axis_label = "Probability"
 
