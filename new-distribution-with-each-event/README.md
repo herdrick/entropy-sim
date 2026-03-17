@@ -1,17 +1,17 @@
 # Interactive Entropy Simulator
 
-A desktop app that visualizes entropy and surprisal by sampling from probability distributions in real time.
+A desktop app that visualizes entropy and surprisal by sampling from a probability distribution in real time.
 
 ## What it does
 
-Streams random samples from one of six source distributions. As samples arrive, four panels update live:
+Streams random samples from a source distribution. **The probability distribution is updated with every new event seen** — as samples arrive, the empirical distribution evolves and four panels update live:
 
 - **Live Histogram** — empirical distribution of samples so far (scroll to zoom)
-- **Entropy Over Time** — Shannon entropy estimate (bits) as more data arrives
+- **Entropy Over Time** — Shannon entropy estimate (bits) as the distribution is refined by incoming data
 - **Surprisal Stream** — per-event surprisal, color-coded, with running average converging toward the source entropy
 - **Latest Event** — most recent sample on a number line with its surprisal
 
-Controls: play/pause, reset, speed slider (1-1000 samples/sec), source selector, reveal source distribution, and manual event entry.
+Controls: play/pause, reset, speed slider (1-1000 samples/sec), and manual event entry.
 
 ## Dependencies
 The `requirements.txt` lists three packages:
