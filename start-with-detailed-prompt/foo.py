@@ -12,7 +12,7 @@ import events as ev
 # ── Constants ────────────────────────────────────────────────────────────────
 X_MIN, X_MAX = -10, 10
 LAPLACE_ALPHA = 1  # pseudocount per bin
-TOOLS = "pan,xwheel_zoom,xbox_zoom,reset,save"
+TOOLS = "xpan,xwheel_zoom,xbox_zoom,reset,save"
 PLOT_WIDTH = 900
 
 # ── State ────────────────────────────────────────────────────────────────────
