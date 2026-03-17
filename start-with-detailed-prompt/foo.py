@@ -79,9 +79,11 @@ def make_column_data_source_data(edges, probs, x_start=X_MIN, x_end=X_MAX):
     right_inf = np.isposinf(rights).astype(int)
     dl = np.where(left_inf,  x_start, lefts)
     dr = np.where(right_inf, x_end,   rights)
+    widths = dr - dl
+    density = np.where(widths > 0, probs / widths, 0.0)
     return dict(
-        left=dl, right=dr, top=probs,
-        center=(dl + dr) / 2, width=dr - dl,
+        left=dl, right=dr, top=density, prob=probs,
+        center=(dl + dr) / 2, width=widths,
         color=bar_colors(len(probs)),
         left_inf=left_inf, right_inf=right_inf,
     )
@@ -178,13 +180,14 @@ def make_p_node(initial_events):
         fill_color="color", line_color="white", alpha=0.8,
     )
     node.figure.xaxis.axis_label = "Value"
-    node.figure.yaxis.axis_label = "Probability"
+    node.figure.yaxis.axis_label = "Probability density"
 
     # JS callback for infinite-edge stretching
     _range_cb = CustomJS(args=dict(source=node.source, x_range=node.rug_fig.x_range), code="""
         const data  = source.data;
         const li    = data['left_inf'];
         const ri    = data['right_inf'];
+        const prob  = data['prob'];
         const left  = data['left'].slice();
         const right = data['right'].slice();
         const xstart = x_range.start;
@@ -195,10 +198,12 @@ def make_p_node(initial_events):
         }
         const center = left.map((l, i) => (l + right[i]) / 2);
         const width  = left.map((l, i) => right[i] - l);
+        const top    = prob.map((p, i) => width[i] > 0 ? p / width[i] : 0);
         data['left']   = left;
         data['right']  = right;
         data['center'] = center;
         data['width']  = width;
+        data['top']    = top;
         source.change.emit();
     """)
     node.rug_fig.x_range.js_on_change('start', _range_cb)
