@@ -5,7 +5,7 @@ from typing import Optional
 from bokeh.plotting import figure, curdoc
 from bokeh.models import (
     ColumnDataSource, CustomJS, Div, TextInput, Button, Row, Column, Spacer, Select,
-    CheckboxGroup,
+    CheckboxGroup, RadioGroup,
 )
 import events as ev
 
@@ -44,6 +44,7 @@ class PNode:
     equal_width_edge_at_ends: CheckboxGroup = None
     equal_width_preview: Div = None
     equal_width_status: Div = None
+    y_mode_radio: RadioGroup = None
     layout: Column = None
 
 
@@ -72,7 +73,7 @@ def compute_raw_probabilities(edges, event_arr):
     return counts / total
 
 
-def make_column_data_source_data(edges, probs, x_start=X_MIN, x_end=X_MAX):
+def make_column_data_source_data(edges, probs, x_start=X_MIN, x_end=X_MAX, use_density=True):
     lefts = edges[:-1]
     rights = edges[1:]
     left_inf  = np.isneginf(lefts).astype(int)
@@ -82,7 +83,7 @@ def make_column_data_source_data(edges, probs, x_start=X_MIN, x_end=X_MAX):
     widths = dr - dl
     density = np.where(widths > 0, probs / widths, 0.0)
     return dict(
-        left=dl, right=dr, top=density, prob=probs,
+        left=dl, right=dr, top=density if use_density else probs, prob=probs, density=density,
         center=(dl + dr) / 2, width=widths,
         color=bar_colors(len(probs)),
         left_inf=left_inf, right_inf=right_inf,
@@ -114,10 +115,12 @@ def recompute_from(node):
         return
     edges = np.array([-np.inf] + sorted(node.interior_edges) + [np.inf])
     probs = compute_probabilities(edges, node.events)
+    use_density = node.y_mode_radio is not None and node.y_mode_radio.active == 1
     node.source.data = make_column_data_source_data(
         edges, probs,
         x_start=node.figure.x_range.start,
         x_end=node.figure.x_range.end,
+        use_density=use_density,
     )
     raw_probs = compute_raw_probabilities(edges, node.events)
     idx = node_index(node)
@@ -166,7 +169,7 @@ def make_p_node(initial_events):
     # P distribution figure — independent x_range, shared with its own rug
     edges0 = np.array([-np.inf, np.inf])
     probs0 = compute_probabilities(edges0, initial_events)
-    node.source = ColumnDataSource(make_column_data_source_data(edges0, probs0))
+    node.source = ColumnDataSource(make_column_data_source_data(edges0, probs0, use_density=False))
 
     node.figure = figure(
         width=PLOT_WIDTH, height=380,
@@ -180,10 +183,13 @@ def make_p_node(initial_events):
         fill_color="color", line_color="white", alpha=0.8,
     )
     node.figure.xaxis.axis_label = "Value"
-    node.figure.yaxis.axis_label = "Probability density"
+    node.figure.yaxis.axis_label = "Probability"
+
+    # Y-mode radio: probability vs probability density
+    node.y_mode_radio = RadioGroup(labels=["Probability", "Probability density"], active=0, inline=True)
 
     # JS callback for infinite-edge stretching
-    _range_cb = CustomJS(args=dict(source=node.source, x_range=node.rug_fig.x_range), code="""
+    _range_cb = CustomJS(args=dict(source=node.source, x_range=node.rug_fig.x_range, y_mode=node.y_mode_radio), code="""
         const data  = source.data;
         const li    = data['left_inf'];
         const ri    = data['right_inf'];
@@ -198,11 +204,13 @@ def make_p_node(initial_events):
         }
         const center = left.map((l, i) => (l + right[i]) / 2);
         const width  = left.map((l, i) => right[i] - l);
-        const top    = prob.map((p, i) => width[i] > 0 ? p / width[i] : 0);
+        const density = prob.map((p, i) => width[i] > 0 ? p / width[i] : 0);
+        const top = y_mode.active === 1 ? density : prob.slice();
         data['left']   = left;
         data['right']  = right;
         data['center'] = center;
         data['width']  = width;
+        data['density'] = density;
         data['top']    = top;
         source.change.emit();
     """)
@@ -332,6 +340,15 @@ def make_p_node(initial_events):
         if n.child is not None:
             recompute_from(n.child)
 
+    def on_y_mode_change(attr, old, new, n=node):
+        n.figure.yaxis.axis_label = "Probability density" if new == 1 else "Probability"
+        # Switch top between density and prob
+        data = n.source.data
+        if new == 1:
+            n.source.data = {**data, 'top': data['density']}
+        else:
+            n.source.data = {**data, 'top': data['prob']}
+
     def on_derive(n=node):
         create_child_node(n)
 
@@ -349,6 +366,7 @@ def make_p_node(initial_events):
     node.equal_width_count_input.on_change("value", on_equal_width_count_change)
     node.equal_width_edge_at_ends.on_change("active", on_equal_width_checkbox_change)
     node.equal_width_submit_btn.on_click(on_equal_width_submit)
+    node.y_mode_radio.on_change("active", on_y_mode_change)
     node.derive_dropdown.on_change("value", on_output_mode_change)
     node.derive_btn.on_click(on_derive)
 
@@ -363,7 +381,8 @@ def make_p_node(initial_events):
     )
     derive_row = Row(node.derive_dropdown, node.derive_btn)
 
-    node.layout = Column(node.rug_fig, node.figure, divide_row, equal_width_row, derive_row)
+    y_mode_row = Row(node.y_mode_radio)
+    node.layout = Column(node.rug_fig, node.figure, y_mode_row, divide_row, equal_width_row, derive_row)
 
     return node
 
