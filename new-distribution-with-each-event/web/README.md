@@ -1,6 +1,6 @@
 # Entropy Simulator (Web Version)
 
-A browser-based interactive simulator for exploring information theory. It samples from a hidden source of single-field numerical data, builds a live histogram / probability distribution, and plots how that distribution/model's entropy and per-event surprisal change over time.
+A browser-based interactive simulator for exploring information theory. It samples from a source distribution, and **the probability distribution is updated with every new event seen**. It builds a live histogram and plots how the distribution's entropy and per-event surprisal change over time.
 
 ## Running it
 
@@ -32,7 +32,7 @@ Four panels update in real time:
 - **Play / Pause** — start or stop automatic sampling
 - **Speed slider** — 1–1000 events per second
 - **Reset** — clear all data and stop playback
-- **Reveal Distribution** — overlay the source's PDF on the histogram and show the source entropy as a reference line on the entropy chart
-- **Mystery Source** — switch between six sources (Uniform, several Beta distributions, and a mixture)
+- **Source Distribution** — choose from several source distributions (Uniform, Beta variants, mixture)
+- **Reveal Distribution** — overlay the source's PDF on the histogram and show the source entropy as a reference line
 - **Add Event** — type a value in [0, 1] and press Enter or click Add to inject it manually
 
