@@ -27,7 +27,7 @@ The `requirements.txt` lists three packages:
 Requires Python 3.8+ with Tk support (included on most systems).
 
 ```bash
-cd start-with-simple-prompt
+cd new-distribution-with-each-event
 pip install -r requirements.txt
 python entropy_sim.py
 ```

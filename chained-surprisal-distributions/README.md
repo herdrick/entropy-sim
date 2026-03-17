@@ -33,7 +33,7 @@ The outermost bins always extend to negative and positive infinity. When you pan
 ### 1. Navigate to the directory
 
 ```bash
-cd start-with-detailed-prompt
+cd chained-surprisal-distributions
 ```
 
 ### 2. Create and activate a virtual environment (recommended)
@@ -116,7 +116,7 @@ If the Bokeh server is already running on port 5006, Playwright will reuse it in
 ## Project Structure
 
 ```
-start-with-detailed-prompt/
+chained-surprisal-distributions/
 ├── foo.py                      # Main Bokeh application
 ├── events.py                   # Event-generation helper (uniform sampler)
 ├── requirements.txt            # Python dependencies
