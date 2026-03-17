@@ -4,7 +4,8 @@ from dataclasses import dataclass, field
 from typing import Optional
 from bokeh.plotting import figure, curdoc
 from bokeh.models import (
-    ColumnDataSource, CustomJS, Div, TextInput, Button, Row, Column, Spacer, Select
+    ColumnDataSource, CustomJS, Div, TextInput, Button, Row, Column, Spacer, Select,
+    CheckboxGroup,
 )
 import events as ev
 
@@ -40,6 +41,8 @@ class PNode:
     equal_width_right_input: TextInput = None
     equal_width_count_input: TextInput = None
     equal_width_submit_btn: Button = None
+    equal_width_edge_at_left: CheckboxGroup = None
+    equal_width_edge_at_right: CheckboxGroup = None
     equal_width_preview: Div = None
     equal_width_status: Div = None
     layout: Column = None
@@ -197,6 +200,8 @@ def make_p_node(initial_events):
     node.equal_width_right_input = TextInput(placeholder="Right", width=80, visible=False)
     node.equal_width_count_input = TextInput(placeholder="Count", width=80, visible=False)
     node.equal_width_submit_btn = Button(label="Add evenly spaced edges", button_type="success", width=200, visible=False)
+    node.equal_width_edge_at_left = CheckboxGroup(labels=["Edge at left"], active=[], visible=False)
+    node.equal_width_edge_at_right = CheckboxGroup(labels=["Edge at right"], active=[], visible=False)
     node.equal_width_preview = Div(text="", width=200, styles={"font-size": "13px", "line-height": "2.2"})
     node.equal_width_status = Div(text="", width=300, styles={"color": "red", "font-size": "13px"})
 
@@ -240,27 +245,41 @@ def make_p_node(initial_events):
         n.equal_width_right_input.visible = vis
         n.equal_width_count_input.visible = vis
         n.equal_width_submit_btn.visible = vis
+        n.equal_width_edge_at_left.visible = vis
+        n.equal_width_edge_at_right.visible = vis
         n.equal_width_status.text = ""
         n.equal_width_preview.text = ""
 
-    def on_equal_width_count_change(attr, old, new, n=node):
+    def update_equal_width_preview(n=node):
         try:
-            count = int(new)
+            count = int(n.equal_width_count_input.value)
             if count < 1:
                 raise ValueError
         except ValueError:
             n.equal_width_preview.text = ""
             return
+        include_left = 0 in n.equal_width_edge_at_left.active
+        include_right = 0 in n.equal_width_edge_at_right.active
         try:
             left = float(n.equal_width_left_input.value)
             right = float(n.equal_width_right_input.value)
             step = (right - left) / (count + 1)
             new_edges = [left + step * (i + 1) for i in range(count)]
+            if include_left:
+                new_edges.insert(0, left)
+            if include_right:
+                new_edges.append(right)
             new_unique = [e for e in new_edges if e not in n.interior_edges]
         except (ValueError, ZeroDivisionError):
             new_unique = list(range(count))
         total_bins = len(n.interior_edges) + len(new_unique) + 1
         n.equal_width_preview.text = f"→ {total_bins} bins total"
+
+    def on_equal_width_count_change(attr, old, new, n=node):
+        update_equal_width_preview(n)
+
+    def on_equal_width_checkbox_change(attr, old, new, n=node):
+        update_equal_width_preview(n)
 
     def on_equal_width_submit(n=node):
         try:
@@ -276,8 +295,14 @@ def make_p_node(initial_events):
         if count < 1:
             n.equal_width_status.text = "Count must be at least 1."
             return
+        include_left = 0 in n.equal_width_edge_at_left.active
+        include_right = 0 in n.equal_width_edge_at_right.active
         step = (right - left) / (count + 1)
         new_edges = [left + step * (i + 1) for i in range(count)]
+        if include_left:
+            new_edges.insert(0, left)
+        if include_right:
+            new_edges.append(right)
         added = [e for e in new_edges if e not in n.interior_edges]
         n.interior_edges.extend(added)
         n.equal_width_status.text = f"Added {len(added)} edge(s)."
@@ -286,6 +311,8 @@ def make_p_node(initial_events):
         n.equal_width_right_input.visible = False
         n.equal_width_count_input.visible = False
         n.equal_width_submit_btn.visible = False
+        n.equal_width_edge_at_left.visible = False
+        n.equal_width_edge_at_right.visible = False
         recompute_from(n)
 
     def on_output_mode_change(attr, old, new, n=node):
@@ -307,6 +334,9 @@ def make_p_node(initial_events):
     node.edge_input.on_change("value", on_edge_input)
     node.equal_width_btn.on_click(on_equal_width_toggle)
     node.equal_width_count_input.on_change("value_input", on_equal_width_count_change)
+    node.equal_width_count_input.on_change("value", on_equal_width_count_change)
+    node.equal_width_edge_at_left.on_change("active", on_equal_width_checkbox_change)
+    node.equal_width_edge_at_right.on_change("active", on_equal_width_checkbox_change)
     node.equal_width_submit_btn.on_click(on_equal_width_submit)
     node.derive_dropdown.on_change("value", on_output_mode_change)
     node.derive_btn.on_click(on_derive)
@@ -314,7 +344,8 @@ def make_p_node(initial_events):
     # ── Layout for this node ─────────────────────────────────────────────
     divide_row = Row(node.divide_bin_btn, node.edge_input, node.edge_status)
     equal_width_row = Row(
-        node.equal_width_btn, node.equal_width_left_input, node.equal_width_right_input,
+        node.equal_width_btn, node.equal_width_left_input, node.equal_width_edge_at_left,
+        node.equal_width_right_input, node.equal_width_edge_at_right,
         node.equal_width_count_input, node.equal_width_submit_btn,
         node.equal_width_preview, node.equal_width_status,
     )
