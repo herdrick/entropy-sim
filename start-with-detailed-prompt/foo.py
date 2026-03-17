@@ -252,7 +252,7 @@ def make_p_node(initial_events):
 
     def update_equal_width_preview(n=node):
         try:
-            count = int(n.equal_width_count_input.value)
+            count = int(n.equal_width_count_input.value_input or n.equal_width_count_input.value)
             if count < 1:
                 raise ValueError
         except ValueError:
