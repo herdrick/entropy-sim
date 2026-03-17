@@ -49,16 +49,27 @@ class PNode:
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
-def compute_probabilities(edges, event_arr):
+def bin_counts(edges, event_arr):
     n_bins = len(edges) - 1
     interior = edges[1:-1]
     if len(event_arr) > 0:
         indices = np.searchsorted(interior, event_arr)
-        counts = np.bincount(indices, minlength=n_bins).astype(float)
-    else:
-        counts = np.zeros(n_bins)
+        return np.bincount(indices, minlength=n_bins).astype(float)
+    return np.zeros(n_bins)
+
+
+def compute_probabilities(edges, event_arr):
+    counts = bin_counts(edges, event_arr)
     smoothed = counts + LAPLACE_ALPHA
     return smoothed / smoothed.sum()
+
+
+def compute_raw_probabilities(edges, event_arr):
+    counts = bin_counts(edges, event_arr)
+    total = counts.sum()
+    if total == 0:
+        return np.zeros(len(counts))
+    return counts / total
 
 
 def make_column_data_source_data(edges, probs, x_start=X_MIN, x_end=X_MAX):
@@ -106,8 +117,12 @@ def recompute_from(node):
         x_start=node.figure.x_range.start,
         x_end=node.figure.x_range.end,
     )
+    raw_probs = compute_raw_probabilities(edges, node.events)
     idx = node_index(node)
-    node.figure.title.text = f"P{idx+1}  |  entropy = {entropy_bits(probs):.4f} bits"
+    node.figure.title.text = (
+        f"P{idx+1}  |  entropy = {entropy_bits(raw_probs):.4f} bits"
+        f"  |  with Laplace smoothing = {entropy_bits(probs):.4f} bits"
+    )
 
     # Update this node's rug plot
     node.rug_source.data = dict(x=node.events, y=np.zeros(len(node.events)))
