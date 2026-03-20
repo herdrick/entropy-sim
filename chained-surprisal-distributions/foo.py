@@ -5,13 +5,13 @@ from typing import Optional
 from bokeh.plotting import figure, curdoc
 from bokeh.models import (
     ColumnDataSource, CustomJS, Div, TextInput, Button, Row, Column, Spacer, Select,
-    CheckboxGroup, RadioGroup,
+    CheckboxGroup, RadioGroup, Slider,
 )
 import events as ev
 
 # ── Constants ────────────────────────────────────────────────────────────────
 X_MIN, X_MAX = -10, 10
-LAPLACE_ALPHA = 1  # pseudocount per bin
+LAPLACE_ALPHA_DEFAULT = 1  # pseudocount per bin
 TOOLS = "xpan,xwheel_zoom,xbox_zoom,reset,save"
 PLOT_WIDTH = 900
 
@@ -46,6 +46,7 @@ class PNode:
     equal_width_preview: Div = None
     equal_width_status: Div = None
     y_mode_radio: RadioGroup = None
+    laplace_slider: Slider = None
     layout: Column = None
 
 
@@ -60,18 +61,10 @@ def bin_counts(edges, event_arr):
     return np.zeros(n_bins)
 
 
-def compute_probabilities(edges, event_arr):
+def compute_probabilities(edges, event_arr, alpha=LAPLACE_ALPHA_DEFAULT):
     counts = bin_counts(edges, event_arr)
-    smoothed = counts + LAPLACE_ALPHA
+    smoothed = counts + alpha
     return smoothed / smoothed.sum()
-
-
-def compute_raw_probabilities(edges, event_arr):
-    counts = bin_counts(edges, event_arr)
-    total = counts.sum()
-    if total == 0:
-        return np.zeros(len(counts))
-    return counts / total
 
 
 def make_column_data_source_data(edges, probs, x_start=X_MIN, x_end=X_MAX, use_density=True):
@@ -115,7 +108,8 @@ def recompute_from(node):
     if node is None:
         return
     edges = np.array([-np.inf] + sorted(node.interior_edges) + [np.inf])
-    probs = compute_probabilities(edges, node.events)
+    alpha = node.laplace_slider.value if node.laplace_slider is not None else LAPLACE_ALPHA_DEFAULT
+    probs = compute_probabilities(edges, node.events, alpha=alpha)
     use_density = node.y_mode_radio is not None and node.y_mode_radio.active == 1
     node.source.data = make_column_data_source_data(
         edges, probs,
@@ -123,11 +117,9 @@ def recompute_from(node):
         x_end=node.figure.x_range.end,
         use_density=use_density,
     )
-    raw_probs = compute_raw_probabilities(edges, node.events)
     idx = node_index(node)
     node.figure.title.text = (
-        f"P{idx+1}  |  entropy = {entropy_bits(raw_probs):.4f} bits"
-        f"  |  with Laplace smoothing = {entropy_bits(probs):.4f} bits"
+        f"P{idx+1}  |  entropy = {entropy_bits(probs):.4f} bits"
     )
 
     # Update bin edge vertical lines (interior edges only, not ±inf)
@@ -198,6 +190,12 @@ def make_p_node(initial_events):
 
     # Y-mode radio: probability vs probability density
     node.y_mode_radio = RadioGroup(labels=["Probability", "Probability density"], active=0, inline=True)
+
+    # Laplace smoothing alpha slider
+    node.laplace_slider = Slider(
+        start=0, end=5, value=LAPLACE_ALPHA_DEFAULT, step=0.1,
+        title="Laplace smoothing α", width=250,
+    )
 
     # JS callback for infinite-edge stretching
     _range_cb = CustomJS(args=dict(source=node.source, x_range=node.rug_fig.x_range, y_mode=node.y_mode_radio), code="""
@@ -360,6 +358,9 @@ def make_p_node(initial_events):
         else:
             n.source.data = {**data, 'top': data['prob']}
 
+    def on_laplace_alpha_change(attr, old, new, n=node):
+        recompute_from(n)
+
     def on_derive(n=node):
         create_child_node(n)
 
@@ -378,6 +379,7 @@ def make_p_node(initial_events):
     node.equal_width_edge_at_ends.on_change("active", on_equal_width_checkbox_change)
     node.equal_width_submit_btn.on_click(on_equal_width_submit)
     node.y_mode_radio.on_change("active", on_y_mode_change)
+    node.laplace_slider.on_change("value", on_laplace_alpha_change)
     node.derive_dropdown.on_change("value", on_output_mode_change)
     node.derive_btn.on_click(on_derive)
 
@@ -392,7 +394,7 @@ def make_p_node(initial_events):
     )
     derive_row = Row(node.derive_dropdown, node.derive_btn)
 
-    y_mode_row = Row(node.y_mode_radio)
+    y_mode_row = Row(node.y_mode_radio, Spacer(width=30), node.laplace_slider)
     node.layout = Column(node.rug_fig, node.figure, y_mode_row, divide_row, equal_width_row, derive_row)
 
     return node
@@ -408,7 +410,8 @@ def create_child_node(parent_node):
             child_events = parent_node.events.copy()
         else:  # surprisal
             edges = np.array([-np.inf] + sorted(parent_node.interior_edges) + [np.inf])
-            probs = compute_probabilities(edges, parent_node.events)
+            alpha = parent_node.laplace_slider.value if parent_node.laplace_slider else LAPLACE_ALPHA_DEFAULT
+            probs = compute_probabilities(edges, parent_node.events, alpha=alpha)
             interior = edges[1:-1]
             bin_indices = np.searchsorted(interior, parent_node.events)
             child_events = -np.log2(probs[bin_indices])
