@@ -347,7 +347,7 @@ def make_p_node(initial_events):
     def on_output_mode_change(attr, old, new, n=node):
         n.output_mode = "passthru" if new == "Pass events thru as they are" else "surprisal"
         if n.child is not None:
-            recompute_from(n.child)
+            recompute_from(n)
 
     def on_y_mode_change(attr, old, new, n=node):
         n.figure.yaxis.axis_label = "Probability density" if new == 1 else "Probability"
