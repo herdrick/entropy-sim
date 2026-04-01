@@ -1,6 +1,6 @@
 # Interactive Entropy Simulator
 
-A desktop app that visualizes entropy and surprisal by sampling from a probability distribution in real time.
+Visualizes entropy and surprisal by pulling a stream of observations from a hidden random source and updating the observed probability distribution with each new event.
 
 ## What it does
 
@@ -11,12 +11,10 @@ Streams random samples from a source distribution. **The probability distributio
 - **Surprisal Stream** — per-event surprisal, color-coded, with running average converging toward the source entropy
 - **Latest Event** — most recent sample on a number line with its surprisal
 
-Controls: play/pause, reset, speed slider (1-1000 samples/sec), and manual event entry.
-
 ## Desktop version (Python/Matplotlib)
 
 ### Dependencies
-The `requirements.txt` lists three packages:
+See `requirements.txt`.
 
 | Package | Purpose |
 |---------|---------|
