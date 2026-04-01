@@ -10,11 +10,12 @@ This repository contains three independent applications. See the README of each.
 
 ### [new-distribution-with-each-event/](./new-distribution-with-each-event/README.md) — Interactive entropy simulator
 
-A desktop GUI (matplotlib/TkAgg) that streams samples from one of six hidden probability distributions. Four live panels update as samples arrive: an empirical histogram, an entropy-over-time trace, a per-event surprisal stream, and a latest-event marker. You try to guess the mystery source, then reveal the true distribution and theoretical entropy to check your intuition.
+A desktop GUI (matplotlib/TkAgg).
 
 **Stack:** Python, numpy, scipy, matplotlib
 
-#### [new-distribution-with-each-event/web](./new-distribution-with-each-event/web/README.md) — web version
+#### [new-distribution-with-each-event/web/](./new-distribution-with-each-event/web/README.md) 
+Web version.
 
 ---
 
