@@ -1,8 +1,8 @@
 # Entropy & surprisal simulations
 
-Interactive tools for building intuition about Shannon entropy and surprisal. These apps let you watch information-theoretic quantities update live as data arrives, making the math tangible rather than abstract.
+Interactive tools for building intuition about Shannon entropy and surprisal. 
 
-This repository contains two independent applications. Each has its own full README with installation and usage instructions.
+This repository contains three independent applications. See the README of each.
 
 ---
 
@@ -13,6 +13,8 @@ This repository contains two independent applications. Each has its own full REA
 A desktop GUI (matplotlib/TkAgg) that streams samples from one of six hidden probability distributions. Four live panels update as samples arrive: an empirical histogram, an entropy-over-time trace, a per-event surprisal stream, and a latest-event marker. You try to guess the mystery source, then reveal the true distribution and theoretical entropy to check your intuition.
 
 **Stack:** Python, numpy, scipy, matplotlib
+
+#### [new-distribution-with-each-event/web](./new-distribution-with-each-event/web/README.md) — web version
 
 ---
 
