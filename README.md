@@ -25,20 +25,3 @@ A browser-based Bokeh server app for building probability distributions from scr
 
 **Stack:** Python, numpy, scipy, Bokeh (browser UI); Playwright (optional tests)
 
----
-
-## Getting started
-
-Each app is self-contained. Navigate into the subdirectory that interests you and follow its README:
-
-```bash
-# Desktop simulator
-cd new-distribution-with-each-event
-# then follow new-distribution-with-each-event/README.md
-
-# Browser-based explorer
-cd chained-surprisal-distributions
-# then follow chained-surprisal-distributions/README.md
-```
-
-Both apps require Python 3.8 or later and no API keys or external accounts.
