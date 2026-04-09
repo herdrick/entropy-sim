@@ -1,5 +1,6 @@
 # run with "bokeh serve start-with-detailed-prompt/foo.py --dev"
 import numpy as np
+from scipy.stats import norm as scipy_norm
 from dataclasses import dataclass, field
 from typing import Optional
 from bokeh.plotting import figure, curdoc
@@ -11,7 +12,9 @@ import events as ev
 
 # ── Constants ────────────────────────────────────────────────────────────────
 X_MIN, X_MAX = -10, 10
-LAPLACE_ALPHA_DEFAULT = 1  # pseudocount per bin
+PRIOR_ALPHA_DEFAULT = 1    # pseudocount scale
+PRIOR_MU_DEFAULT = 0       # prior mean
+PRIOR_SIGMA_DEFAULT = 5    # prior std dev
 TOOLS = "xpan,xwheel_zoom,xbox_zoom,reset,save"
 PLOT_WIDTH = 900
 
@@ -47,7 +50,9 @@ class PNode:
     equal_width_preview: Div = None
     equal_width_status: Div = None
     y_mode_radio: RadioGroup = None
-    laplace_slider: Slider = None
+    prior_alpha_slider: Slider = None
+    prior_mu_slider: Slider = None
+    prior_sigma_slider: Slider = None
     kl_div_display: Div = None
     current_edges: np.ndarray = None
     current_probs: np.ndarray = None
@@ -65,10 +70,21 @@ def bin_counts(edges, event_arr):
     return np.zeros(n_bins)
 
 
-def compute_probabilities(edges, event_arr, alpha=LAPLACE_ALPHA_DEFAULT):
+def gaussian_prior_mass(edges, mu=PRIOR_MU_DEFAULT, sigma=PRIOR_SIGMA_DEFAULT):
+    """Prior mass in each bin from a Gaussian(mu, sigma) distribution."""
+    cdf_vals = scipy_norm.cdf(edges, loc=mu, scale=sigma)
+    return np.diff(cdf_vals)
+
+
+def compute_probabilities(edges, event_arr, alpha=PRIOR_ALPHA_DEFAULT,
+                          mu=PRIOR_MU_DEFAULT, sigma=PRIOR_SIGMA_DEFAULT):
     counts = bin_counts(edges, event_arr)
-    smoothed = counts + alpha
-    return smoothed / smoothed.sum()
+    prior = gaussian_prior_mass(edges, mu, sigma)
+    smoothed = counts + alpha * prior
+    total = smoothed.sum()
+    if total > 0:
+        return smoothed / total
+    return np.ones(len(counts)) / len(counts)
 
 
 def make_column_data_source_data(edges, probs, counts=None, x_start=X_MIN, x_end=X_MAX, use_density=True):
@@ -107,7 +123,7 @@ def kl_divergence_bits(p_edges, p_probs, q_edges, q_probs):
     """D_KL(P||Q) in bits, or None if undefined.
 
     Defined when every non-zero-prob bin of P has a matching bin in Q
-    (same two edges) whose probability is also non-zero. Laplace smoothing
+    (same two edges) whose probability is also non-zero. Prior smoothing
     (if any) is already baked into p_probs/q_probs before this is called.
     """
     q_map = {(float(q_edges[i]), float(q_edges[i + 1])): float(q_probs[i])
@@ -143,9 +159,11 @@ def recompute_from(node):
     if node is None:
         return
     edges = np.array([-np.inf] + sorted(node.interior_edges) + [np.inf])
-    alpha = node.laplace_slider.value if node.laplace_slider is not None else LAPLACE_ALPHA_DEFAULT
+    alpha = node.prior_alpha_slider.value if node.prior_alpha_slider is not None else PRIOR_ALPHA_DEFAULT
+    mu = node.prior_mu_slider.value if node.prior_mu_slider is not None else PRIOR_MU_DEFAULT
+    sigma = node.prior_sigma_slider.value if node.prior_sigma_slider is not None else PRIOR_SIGMA_DEFAULT
     counts = bin_counts(edges, node.events)
-    probs = compute_probabilities(edges, node.events, alpha=alpha)
+    probs = compute_probabilities(edges, node.events, alpha=alpha, mu=mu, sigma=sigma)
     node.current_edges = edges
     node.current_probs = probs
     use_density = node.y_mode_radio is not None and node.y_mode_radio.active == 1
@@ -247,7 +265,7 @@ def make_p_node(initial_events):
     hover = HoverTool(renderers=[quad_renderer], tooltips=[
         ("Bin", "@edge_left_str to @edge_right_str"),
         ("Count", "@count{0}"),
-        ("Probability before smoothing", "@raw_prob{0.0000}"),
+        ("Probability before prior", "@raw_prob{0.0000}"),
         ("Probability", "@prob{0.0000}"),
         ("Density", "@density{0.0000}"),
     ])
@@ -264,10 +282,18 @@ def make_p_node(initial_events):
     # Y-mode radio: probability vs probability density
     node.y_mode_radio = RadioGroup(labels=["Probability", "Probability density"], active=0, inline=True)
 
-    # Laplace smoothing alpha slider
-    node.laplace_slider = Slider(
-        start=0, end=5, value=LAPLACE_ALPHA_DEFAULT, step=0.1,
-        title="Laplace smoothing α", width=250,
+    # Gaussian prior sliders
+    node.prior_alpha_slider = Slider(
+        start=0, end=5, value=PRIOR_ALPHA_DEFAULT, step=0.1,
+        title="Prior strength α", width=250,
+    )
+    node.prior_mu_slider = Slider(
+        start=-10, end=10, value=PRIOR_MU_DEFAULT, step=0.1,
+        title="Prior mean μ", width=250,
+    )
+    node.prior_sigma_slider = Slider(
+        start=0.1, end=20, value=PRIOR_SIGMA_DEFAULT, step=0.1,
+        title="Prior std dev σ", width=250,
     )
 
     # JS callback for infinite-edge stretching
@@ -426,7 +452,7 @@ def make_p_node(initial_events):
         else:
             n.source.data = {**data, 'top': data['prob']}
 
-    def on_laplace_alpha_change(attr, old, new, n=node):
+    def on_prior_change(attr, old, new, n=node):
         recompute_from(n)
 
     def on_derive(n=node):
@@ -447,7 +473,9 @@ def make_p_node(initial_events):
     node.equal_width_edge_at_ends.on_change("active", on_equal_width_checkbox_change)
     node.equal_width_submit_btn.on_click(on_equal_width_submit)
     node.y_mode_radio.on_change("active", on_y_mode_change)
-    node.laplace_slider.on_change("value", on_laplace_alpha_change)
+    node.prior_alpha_slider.on_change("value", on_prior_change)
+    node.prior_mu_slider.on_change("value", on_prior_change)
+    node.prior_sigma_slider.on_change("value", on_prior_change)
     node.derive_dropdown.on_change("value", on_output_mode_change)
     node.derive_btn.on_click(on_derive)
 
@@ -462,8 +490,8 @@ def make_p_node(initial_events):
     )
     derive_row = Row(node.derive_dropdown, node.derive_btn, node.kl_div_display)
 
-    y_mode_row = Row(node.y_mode_radio, Spacer(width=30), node.laplace_slider)
-    node.layout = Column(node.rug_fig, node.figure, y_mode_row, divide_row, equal_width_row, derive_row)
+    prior_row = Row(node.prior_alpha_slider, Spacer(width=20), node.prior_mu_slider, Spacer(width=20), node.prior_sigma_slider)
+    node.layout = Column(node.rug_fig, prior_row, node.figure, node.y_mode_radio, divide_row, equal_width_row, derive_row)
 
     return node
 
@@ -478,8 +506,10 @@ def create_child_node(parent_node):
             child_events = parent_node.events.copy()
         else:  # surprisal
             edges = np.array([-np.inf] + sorted(parent_node.interior_edges) + [np.inf])
-            alpha = parent_node.laplace_slider.value if parent_node.laplace_slider else LAPLACE_ALPHA_DEFAULT
-            probs = compute_probabilities(edges, parent_node.events, alpha=alpha)
+            alpha = parent_node.prior_alpha_slider.value if parent_node.prior_alpha_slider else PRIOR_ALPHA_DEFAULT
+            mu = parent_node.prior_mu_slider.value if parent_node.prior_mu_slider else PRIOR_MU_DEFAULT
+            sigma = parent_node.prior_sigma_slider.value if parent_node.prior_sigma_slider else PRIOR_SIGMA_DEFAULT
+            probs = compute_probabilities(edges, parent_node.events, alpha=alpha, mu=mu, sigma=sigma)
             interior = edges[1:-1]
             bin_indices = np.searchsorted(interior, parent_node.events)
             child_events = -np.log2(probs[bin_indices])
