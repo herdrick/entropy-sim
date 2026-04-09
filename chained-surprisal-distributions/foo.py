@@ -5,7 +5,7 @@ from typing import Optional
 from bokeh.plotting import figure, curdoc
 from bokeh.models import (
     ColumnDataSource, CustomJS, Div, TextInput, Button, Row, Column, Spacer, Select,
-    CheckboxGroup, RadioGroup, Slider,
+    CheckboxGroup, RadioGroup, Slider, HoverTool,
 )
 import events as ev
 
@@ -71,7 +71,7 @@ def compute_probabilities(edges, event_arr, alpha=LAPLACE_ALPHA_DEFAULT):
     return smoothed / smoothed.sum()
 
 
-def make_column_data_source_data(edges, probs, x_start=X_MIN, x_end=X_MAX, use_density=True):
+def make_column_data_source_data(edges, probs, counts=None, x_start=X_MIN, x_end=X_MAX, use_density=True):
     lefts = edges[:-1]
     rights = edges[1:]
     left_inf  = np.isneginf(lefts).astype(int)
@@ -80,11 +80,20 @@ def make_column_data_source_data(edges, probs, x_start=X_MIN, x_end=X_MAX, use_d
     dr = np.where(right_inf, x_end,   rights)
     widths = dr - dl
     density = np.where(widths > 0, probs / widths, 0.0)
+    # Edge labels for hover: show "-inf" / "+inf" for infinite edges
+    edge_left_str = ["-\u221e" if np.isneginf(e) else f"{e:.4g}" for e in lefts]
+    edge_right_str = ["+\u221e" if np.isposinf(e) else f"{e:.4g}" for e in rights]
+    if counts is None:
+        counts = np.zeros(len(probs))
+    total = counts.sum()
+    raw_prob = counts / total if total > 0 else np.zeros(len(probs))
     return dict(
         left=dl, right=dr, top=density if use_density else probs, prob=probs, density=density,
         center=(dl + dr) / 2, width=widths,
         color=bar_colors(len(probs)),
         left_inf=left_inf, right_inf=right_inf,
+        count=counts, raw_prob=raw_prob,
+        edge_left_str=edge_left_str, edge_right_str=edge_right_str,
     )
 
 
@@ -135,12 +144,13 @@ def recompute_from(node):
         return
     edges = np.array([-np.inf] + sorted(node.interior_edges) + [np.inf])
     alpha = node.laplace_slider.value if node.laplace_slider is not None else LAPLACE_ALPHA_DEFAULT
+    counts = bin_counts(edges, node.events)
     probs = compute_probabilities(edges, node.events, alpha=alpha)
     node.current_edges = edges
     node.current_probs = probs
     use_density = node.y_mode_radio is not None and node.y_mode_radio.active == 1
     node.source.data = make_column_data_source_data(
-        edges, probs,
+        edges, probs, counts=counts,
         x_start=node.figure.x_range.start,
         x_end=node.figure.x_range.end,
         use_density=use_density,
@@ -229,11 +239,19 @@ def make_p_node(initial_events):
         tools=TOOLS, toolbar_location="right",
         title="P  |  Entropy = 0.0000 bits",
     )
-    node.figure.quad(
+    quad_renderer = node.figure.quad(
         left="left", right="right", top="top", bottom=0,
         source=node.source,
         fill_color="color", line_color="black", alpha=0.8,
     )
+    hover = HoverTool(renderers=[quad_renderer], tooltips=[
+        ("Bin", "@edge_left_str to @edge_right_str"),
+        ("Count", "@count{0}"),
+        ("Probability before smoothing", "@raw_prob{0.0000}"),
+        ("Probability", "@prob{0.0000}"),
+        ("Density", "@density{0.0000}"),
+    ])
+    node.figure.add_tools(hover)
     # Vertical lines at bin edges (full plot height)
     node.edge_line_source = ColumnDataSource(dict(x=[]))
     node.figure.ray(x="x", y=0, length=0, angle=np.pi/2,
@@ -270,13 +288,7 @@ def make_p_node(initial_events):
         const width  = left.map((l, i) => right[i] - l);
         const density = prob.map((p, i) => width[i] > 0 ? p / width[i] : 0);
         const top = y_mode.active === 1 ? density : prob.slice();
-        data['left']   = left;
-        data['right']  = right;
-        data['center'] = center;
-        data['width']  = width;
-        data['density'] = density;
-        data['top']    = top;
-        source.change.emit();
+        source.data = {...data, left, right, center, width, density, top};
     """)
     node.rug_fig.x_range.js_on_change('start', _range_cb)
     node.rug_fig.x_range.js_on_change('end',   _range_cb)
@@ -587,3 +599,4 @@ root_col = Column(
 
 curdoc().add_root(root_col)
 curdoc().title = "Entropy & Surprisal Explorer"
+
