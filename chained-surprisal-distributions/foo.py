@@ -190,9 +190,9 @@ def update_kl_display(parent):
     kl_cp = kl_divergence_bits(ce, cp, pe, pp)
     parts = []
     if kl_pc is not None:
-        parts.append(f"D<sub>KL</sub>(P{pi}‖P{ci}) = {kl_pc:.4f} bits")
+        parts.append(f"KL divergence ↓ {kl_pc:.4f} bits")
     if kl_cp is not None:
-        parts.append(f"D<sub>KL</sub>(P{ci}‖P{pi}) = {kl_cp:.4f} bits")
+        parts.append(f"KL divergence ↑ {kl_cp:.4f} bits")
     parent.kl_div_display.text = " &nbsp;&nbsp; ".join(parts)
 
 
