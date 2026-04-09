@@ -31,6 +31,7 @@ class PNode:
     rug_source: ColumnDataSource = None
     edge_line_source: ColumnDataSource = None
     child: Optional["PNode"] = None
+    parent: Optional["PNode"] = None
     # UI widgets
     derive_dropdown: Select = None
     derive_btn: Button = None
@@ -47,6 +48,9 @@ class PNode:
     equal_width_status: Div = None
     y_mode_radio: RadioGroup = None
     laplace_slider: Slider = None
+    kl_div_display: Div = None
+    current_edges: np.ndarray = None
+    current_probs: np.ndarray = None
     layout: Column = None
 
 
@@ -90,6 +94,28 @@ def entropy_bits(probs):
     return float(-np.sum(p * np.log2(p)))
 
 
+def kl_divergence_bits(p_edges, p_probs, q_edges, q_probs):
+    """D_KL(P||Q) in bits, or None if undefined.
+
+    Defined when every non-zero-prob bin of P has a matching bin in Q
+    (same two edges) whose probability is also non-zero. Laplace smoothing
+    (if any) is already baked into p_probs/q_probs before this is called.
+    """
+    q_map = {(float(q_edges[i]), float(q_edges[i + 1])): float(q_probs[i])
+             for i in range(len(q_probs))}
+    total = 0.0
+    for i in range(len(p_probs)):
+        p = float(p_probs[i])
+        if p <= 0:
+            continue
+        key = (float(p_edges[i]), float(p_edges[i + 1]))
+        q = q_map.get(key)
+        if q is None or q <= 0:
+            return None
+        total += p * np.log2(p / q)
+    return float(total)
+
+
 def bar_colors(n):
     return ["#4878CF"] * n
 
@@ -110,6 +136,8 @@ def recompute_from(node):
     edges = np.array([-np.inf] + sorted(node.interior_edges) + [np.inf])
     alpha = node.laplace_slider.value if node.laplace_slider is not None else LAPLACE_ALPHA_DEFAULT
     probs = compute_probabilities(edges, node.events, alpha=alpha)
+    node.current_edges = edges
+    node.current_probs = probs
     use_density = node.y_mode_radio is not None and node.y_mode_radio.active == 1
     node.source.data = make_column_data_source_data(
         edges, probs,
@@ -139,6 +167,33 @@ def recompute_from(node):
             bin_indices = np.searchsorted(interior, node.events)
             node.child.events = -np.log2(probs[bin_indices])
         recompute_from(node.child)
+        update_kl_display(node)
+    else:
+        if node.kl_div_display is not None:
+            node.kl_div_display.text = ""
+    if node.parent is not None:
+        update_kl_display(node.parent)
+
+
+def update_kl_display(parent):
+    child = parent.child
+    if child is None or parent.kl_div_display is None:
+        return
+    pe, pp = parent.current_edges, parent.current_probs
+    ce, cp = child.current_edges, child.current_probs
+    if pe is None or ce is None:
+        parent.kl_div_display.text = ""
+        return
+    pi = node_index(parent) + 1
+    ci = node_index(child) + 1
+    kl_pc = kl_divergence_bits(pe, pp, ce, cp)
+    kl_cp = kl_divergence_bits(ce, cp, pe, pp)
+    parts = []
+    if kl_pc is not None:
+        parts.append(f"D<sub>KL</sub>(P{pi}‖P{ci}) = {kl_pc:.4f} bits")
+    if kl_cp is not None:
+        parts.append(f"D<sub>KL</sub>(P{ci}‖P{pi}) = {kl_cp:.4f} bits")
+    parent.kl_div_display.text = " &nbsp;&nbsp; ".join(parts)
 
 
 # ── PNode factory ────────────────────────────────────────────────────────────
@@ -247,6 +302,7 @@ def make_p_node(initial_events):
         width=250,
     )
     node.derive_btn = Button(label="View derived distribution", button_type="primary", width=220)
+    node.kl_div_display = Div(text="", width=600, styles={"line-height": "2.2", "margin-left": "10px", "font-size": "13px"})
 
     # ── Per-node callbacks ───────────────────────────────────────────────
 
@@ -392,7 +448,7 @@ def make_p_node(initial_events):
         node.equal_width_edge_at_ends,
         node.equal_width_preview, node.equal_width_status,
     )
-    derive_row = Row(node.derive_dropdown, node.derive_btn)
+    derive_row = Row(node.derive_dropdown, node.derive_btn, node.kl_div_display)
 
     y_mode_row = Row(node.y_mode_radio, Spacer(width=30), node.laplace_slider)
     node.layout = Column(node.rug_fig, node.figure, y_mode_row, divide_row, equal_width_row, derive_row)
@@ -422,6 +478,7 @@ def create_child_node(parent_node):
 
     if parent_node is not None:
         parent_node.child = new_node
+        new_node.parent = parent_node
         parent_node.derive_btn.disabled = True
     else:
         root_node = new_node
@@ -432,6 +489,8 @@ def create_child_node(parent_node):
 
     # Recompute so it shows a distribution
     recompute_from(new_node)
+    if parent_node is not None:
+        update_kl_display(parent_node)
 
 
 # ── Top-level event controls ─────────────────────────────────────────────────
