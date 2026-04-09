@@ -297,7 +297,7 @@ def make_p_node(initial_events):
 
     # ── Derive controls ──────────────────────────────────────────────────
     node.derive_dropdown = Select(
-        value="Pass events thru as they are",
+        value="Surprisal",
         options=["Pass events thru as they are", "Surprisal"],
         width=250,
     )
