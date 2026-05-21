@@ -481,11 +481,6 @@ def make_p_node(initial_events):
 
     def on_propagate_change(attr, old, new, n=node):
         n.propagates = 0 in new
-        if n.propagates and n.child is not None:
-            propagate_params_down(n)
-            # Last: check child's box, which cascades the propagation further down
-            if 0 not in n.child.gang_checkbox.active:
-                n.child.gang_checkbox.active = [0]
 
     def on_derive(n=node):
         create_child_node(n)
@@ -555,7 +550,9 @@ def create_child_node(parent_node):
         parent_node.child = new_node
         new_node.parent = parent_node
         parent_node.derive_btn.disabled = True
+        new_node.propagates = parent_node.propagates
         if parent_node.propagates:
+            new_node.gang_checkbox.active = [0]
             propagate_params_down(parent_node)
     else:
         root_node = new_node
