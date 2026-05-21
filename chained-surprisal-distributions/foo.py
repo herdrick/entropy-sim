@@ -57,6 +57,8 @@ class PNode:
     current_edges: np.ndarray = None
     current_probs: np.ndarray = None
     layout: Column = None
+    propagates: bool = False
+    gang_checkbox: CheckboxGroup = None
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -154,6 +156,19 @@ def node_index(node):
 
 
 # ── Core recomputation ───────────────────────────────────────────────────────
+
+def propagate_params_down(node):
+    """Push node's params to its child. Recurses if child also propagates."""
+    child = node.child
+    if child is None:
+        return
+    child.interior_edges = list(node.interior_edges)
+    child.prior_alpha_slider.value = node.prior_alpha_slider.value
+    child.prior_mu_slider.value = node.prior_mu_slider.value
+    child.prior_sigma_slider.value = node.prior_sigma_slider.value
+    if child.propagates:
+        propagate_params_down(child)
+
 
 def recompute_from(node):
     if node is None:
@@ -282,6 +297,9 @@ def make_p_node(initial_events):
     # Y-mode radio: probability vs probability density
     node.y_mode_radio = RadioGroup(labels=["Probability", "Probability density"], active=0, inline=True)
 
+    # Gang checkbox (hidden until node is linked to a parent)
+    node.gang_checkbox = CheckboxGroup(labels=["Propagate params to child node"], active=[])
+
     # Gaussian prior sliders
     node.prior_alpha_slider = Slider(
         start=0, end=5, value=PRIOR_ALPHA_DEFAULT, step=0.1,
@@ -366,6 +384,8 @@ def make_p_node(initial_events):
         n.edge_status.text = f"Added bin edge at {val}."
         n.edge_input.value = ""
         n.edge_input.visible = False
+        if n.propagates:
+            propagate_params_down(n)
         recompute_from(n)
 
     def on_equal_width_toggle(n=node):
@@ -436,6 +456,8 @@ def make_p_node(initial_events):
         n.equal_width_count_input.visible = False
         n.equal_width_submit_btn.visible = False
         n.equal_width_edge_at_ends.visible = False
+        if n.propagates:
+            propagate_params_down(n)
         recompute_from(n)
 
     def on_output_mode_change(attr, old, new, n=node):
@@ -454,6 +476,16 @@ def make_p_node(initial_events):
 
     def on_prior_change(attr, old, new, n=node):
         recompute_from(n)
+        if n.propagates:
+            propagate_params_down(n)
+
+    def on_propagate_change(attr, old, new, n=node):
+        n.propagates = 0 in new
+        if n.propagates and n.child is not None:
+            propagate_params_down(n)
+            # Last: check child's box, which cascades the propagation further down
+            if 0 not in n.child.gang_checkbox.active:
+                n.child.gang_checkbox.active = [0]
 
     def on_derive(n=node):
         create_child_node(n)
@@ -478,6 +510,7 @@ def make_p_node(initial_events):
     node.prior_sigma_slider.on_change("value", on_prior_change)
     node.derive_dropdown.on_change("value", on_output_mode_change)
     node.derive_btn.on_click(on_derive)
+    node.gang_checkbox.on_change("active", on_propagate_change)
 
     # ── Layout for this node ─────────────────────────────────────────────
     divide_row = Row(node.divide_bin_btn, node.edge_input, node.edge_status)
@@ -490,7 +523,7 @@ def make_p_node(initial_events):
     )
     derive_row = Row(node.derive_dropdown, node.derive_btn, node.kl_div_display)
 
-    prior_row = Row(node.prior_alpha_slider, Spacer(width=20), node.prior_mu_slider, Spacer(width=20), node.prior_sigma_slider)
+    prior_row = Row(node.gang_checkbox, Spacer(width=20), node.prior_alpha_slider, Spacer(width=20), node.prior_mu_slider, Spacer(width=20), node.prior_sigma_slider)
     node.layout = Column(node.rug_fig, prior_row, node.figure, node.y_mode_radio, divide_row, equal_width_row, derive_row)
 
     return node
@@ -522,6 +555,8 @@ def create_child_node(parent_node):
         parent_node.child = new_node
         new_node.parent = parent_node
         parent_node.derive_btn.disabled = True
+        if parent_node.propagates:
+            propagate_params_down(parent_node)
     else:
         root_node = new_node
         initial_derive_btn.disabled = True
