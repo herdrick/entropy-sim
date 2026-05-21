@@ -549,7 +549,11 @@ function initControls() {
   document.querySelectorAll('input[name="source"]').forEach(radio => {
     radio.addEventListener('change', () => {
       state.currentSource = radio.value;
-      document.getElementById('btn-reset').click();
+      if (state.revealed) {
+        revealBtn.textContent = SOURCES[state.currentSource].name;
+      }
+      updatePdfOverlay();
+      updateEntropyChart();
     });
   });
 
