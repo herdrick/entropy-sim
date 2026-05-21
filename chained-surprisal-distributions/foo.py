@@ -25,7 +25,7 @@ root_node: Optional["PNode"] = None       # head of the singly-linked list
 
 @dataclass
 class PNode:
-    output_mode: str = "passthru"       # "passthru" | "surprisal"
+    output_mode: str = "surprisal"       # "passthru" | "surprisal"
     interior_edges: list = field(default_factory=list)
     events: np.ndarray = field(default_factory=lambda: np.array([], dtype=float))
     figure: object = None
