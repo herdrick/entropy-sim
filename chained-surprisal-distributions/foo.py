@@ -508,18 +508,25 @@ def make_p_node(initial_events):
     node.gang_checkbox.on_change("active", on_propagate_change)
 
     # ── Layout for this node ─────────────────────────────────────────────
-    divide_row = Row(node.divide_bin_btn, node.edge_input, node.edge_status)
-    equal_width_row = Row(
-        node.equal_width_btn, node.equal_width_left_input,
+    divide_section = Row(node.divide_bin_btn, node.edge_input, node.edge_status)
+    equal_width_inputs_row = Row(
+        node.equal_width_left_input,
         node.equal_width_right_input,
-        node.equal_width_count_input, node.equal_width_submit_btn,
-        node.equal_width_edge_at_ends,
-        node.equal_width_preview, node.equal_width_status,
+        node.equal_width_count_input,
     )
-    derive_row = Row(node.derive_dropdown, node.derive_btn, node.kl_div_display)
+    equal_width_section = Column(
+        Row(node.equal_width_btn, node.equal_width_preview, node.equal_width_status),
+        equal_width_inputs_row,
+        node.equal_width_submit_btn,
+        node.equal_width_edge_at_ends,
+    )
+    edge_panel = Column(divide_section, Spacer(height=10), equal_width_section)
 
-    prior_row = Row(node.gang_checkbox, Spacer(width=20), node.prior_alpha_slider, Spacer(width=20), node.prior_mu_slider, Spacer(width=20), node.prior_sigma_slider)
-    node.layout = Column(node.rug_fig, prior_row, node.figure, node.y_mode_radio, divide_row, equal_width_row, derive_row)
+    derive_row = Row(node.derive_dropdown, node.derive_btn, node.gang_checkbox, node.kl_div_display)
+
+    prior_row = Row(node.prior_alpha_slider, Spacer(width=20), node.prior_mu_slider, Spacer(width=20), node.prior_sigma_slider)
+    plot_and_edges = Row(node.figure, Spacer(width=20), edge_panel)
+    node.layout = Column(prior_row, node.rug_fig, plot_and_edges, node.y_mode_radio, derive_row)
 
     return node
 
