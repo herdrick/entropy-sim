@@ -521,9 +521,6 @@ function initControls() {
   });
 
   document.getElementById('btn-reset').addEventListener('click', () => {
-    state.playing = false;
-    playBtn.textContent = 'Play';
-    stopTimer();
     state.revealed = false;
     document.getElementById('btn-reveal').textContent = 'Reveal Distribution';
     resetData();
