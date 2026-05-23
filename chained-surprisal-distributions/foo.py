@@ -1,5 +1,7 @@
 # run with "bokeh serve start-with-detailed-prompt/foo.py --dev"
 import numpy as np
+np.set_printoptions(formatter={'float': lambda x: f"{x},"})  # Note: This leaves a trailing comma at the very end of the array, but it will restore commas between the elements in your server logs.
+
 from scipy.stats import norm as scipy_norm
 from dataclasses import dataclass, field
 from typing import Optional
