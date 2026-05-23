@@ -579,6 +579,7 @@ def create_child_node(parent_node):
 # ── Top-level event controls ─────────────────────────────────────────────────
 
 n_events_input = TextInput(value="1000", title="", width=80)
+source_select = Select(value=ev.SOURCE_NAMES[0], options=ev.SOURCE_NAMES, width=200)
 add_events_btn = Button(label="Add events", button_type="success", width=120)
 make_dist_btn = Button(label="Make distribution from events", button_type="primary", width=240, disabled=True)
 clear_events_btn = Button(label="Clear events", button_type="warning", width=120, disabled=True)
@@ -620,7 +621,7 @@ def on_add_events():
     except ValueError:
         n = 1000
         n_events_input.value = "1000"
-    new_ev = ev.get_events(n)
+    new_ev = ev.get_events(n, source_select.value)
     root_events = np.concatenate([root_events, new_ev])
     refresh_rug()
 
@@ -653,6 +654,8 @@ initial_derive_btn.on_click(on_initial_derive)
 # ── Layout ────────────────────────────────────────────────────────────────────
 
 top_controls = Row(
+    source_select,
+    Spacer(width=10),
     add_events_btn,
     Div(text="<b>n =</b>", styles={"line-height": "2.2", "margin-left": "6px"}),
     n_events_input,
@@ -670,4 +673,3 @@ root_col = Column(
 
 curdoc().add_root(root_col)
 curdoc().title = "Entropy & Surprisal Explorer"
-
