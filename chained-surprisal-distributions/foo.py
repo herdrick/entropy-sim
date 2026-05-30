@@ -575,7 +575,6 @@ def create_child_node(parent_node):
 n_events_input = TextInput(value="1000", title="", width=80)
 source_select = Select(value=ev.SOURCE_NAMES[0], options=ev.SOURCE_NAMES, width=200)
 add_events_btn = Button(label="Add events", button_type="success", width=120)
-make_dist_btn = Button(label="Make distribution from events", button_type="primary", width=240, disabled=True)
 clear_events_btn = Button(label="Clear events", button_type="warning", width=120, disabled=True)
 single_event_input = TextInput(placeholder="Add event at value…", width=200)
 single_event_count_input = TextInput(value="1", width=60, title="")
@@ -605,7 +604,6 @@ def refresh_rug():
     rug_source.data = dict(x=root_events, y=np.zeros(len(root_events)))
     rug_fig.title.text = f"Events ({len(root_events)})"
     has_events = len(root_events) > 0
-    make_dist_btn.disabled = not has_events
     clear_events_btn.disabled = not has_events
 
 
@@ -621,6 +619,7 @@ def on_add_events():
     new_ev = ev.get_events(n, source_select.value)
     root_events = np.concatenate([root_events, new_ev])
     refresh_rug()
+    on_make_dist()
 
 
 def on_make_dist():
@@ -635,7 +634,6 @@ def on_clear_events():
     root_events = np.array([], dtype=float)
     rug_source.data = dict(x=[], y=[])
     rug_fig.title.text = "Events (0)"
-    make_dist_btn.disabled = True
     clear_events_btn.disabled = True
 
 
@@ -659,6 +657,7 @@ def on_single_event_input(attr, old, new):
     single_event_status.text = f"Added {n} event{'s' if n > 1 else ''} at {val}."
     single_event_input.value = ""
     refresh_rug()
+    on_make_dist()
 
 
 def on_initial_derive():
@@ -666,7 +665,6 @@ def on_initial_derive():
 
 
 add_events_btn.on_click(on_add_events)
-make_dist_btn.on_click(on_make_dist)
 clear_events_btn.on_click(on_clear_events)
 single_event_input.on_change("value", on_single_event_input)
 initial_derive_btn.on_click(on_initial_derive)
@@ -679,8 +677,6 @@ top_controls = Row(
     add_events_btn,
     Div(text="<b>n =</b>", styles={"line-height": "2.2", "margin-left": "6px"}),
     n_events_input,
-    Spacer(width=20),
-    make_dist_btn,
     Spacer(width=20),
     clear_events_btn,
     Spacer(width=30),
