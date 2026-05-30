@@ -554,6 +554,8 @@ def create_child_node(parent_node):
         new_node.parent = parent_node
         parent_node.derive_btn.disabled = True
         if parent_node.propagates:
+            new_node.propagates = True
+            new_node.gang_checkbox.active = [0]
             propagate_params_down(parent_node)
     else:
         root_node = new_node
