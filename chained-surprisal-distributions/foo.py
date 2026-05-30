@@ -300,7 +300,7 @@ def make_p_node(initial_events):
     node.y_mode_radio = RadioGroup(labels=["Probability", "Probability density"], active=0, inline=True)
 
     # Gang checkbox (hidden until node is linked to a parent)
-    node.gang_checkbox = CheckboxGroup(labels=["Propagate params to child node"], active=[])
+    node.gang_checkbox = CheckboxGroup(labels=["Copy params to child node"], active=[])
 
     # Gaussian prior sliders
     node.prior_alpha_slider = Slider(
@@ -386,8 +386,6 @@ def make_p_node(initial_events):
         n.edge_status.text = f"Added bin edge at {val}."
         n.edge_input.value = ""
         n.edge_input.visible = False
-        if n.propagates:
-            propagate_params_down(n)
         recompute_from(n)
 
     def on_equal_width_toggle(n=node):
@@ -458,8 +456,6 @@ def make_p_node(initial_events):
         n.equal_width_count_input.visible = False
         n.equal_width_submit_btn.visible = False
         n.equal_width_edge_at_ends.visible = False
-        if n.propagates:
-            propagate_params_down(n)
         recompute_from(n)
 
     def on_output_mode_change(attr, old, new, n=node):
@@ -478,8 +474,6 @@ def make_p_node(initial_events):
 
     def on_prior_change(attr, old, new, n=node):
         recompute_from(n)
-        if n.propagates:
-            propagate_params_down(n)
 
     def on_propagate_change(attr, old, new, n=node):
         n.propagates = 0 in new
@@ -559,9 +553,7 @@ def create_child_node(parent_node):
         parent_node.child = new_node
         new_node.parent = parent_node
         parent_node.derive_btn.disabled = True
-        new_node.propagates = parent_node.propagates
         if parent_node.propagates:
-            new_node.gang_checkbox.active = [0]
             propagate_params_down(parent_node)
     else:
         root_node = new_node
