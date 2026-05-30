@@ -578,7 +578,7 @@ add_events_btn = Button(label="Add events", button_type="success", width=120)
 make_dist_btn = Button(label="Make distribution from events", button_type="primary", width=240, disabled=True)
 clear_events_btn = Button(label="Clear events", button_type="warning", width=120, disabled=True)
 single_event_input = TextInput(placeholder="Add event at value…", width=200)
-single_event_count_input = TextInput(value="0", width=60, title="")
+single_event_count_input = TextInput(value="1", width=60, title="")
 single_event_status = Div(text="", width=200, styles={"color": "red", "font-size": "13px", "line-height": "2.2"})
 
 # Top-level rug plot (raw events, before any PNode)
