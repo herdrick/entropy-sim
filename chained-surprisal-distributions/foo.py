@@ -583,6 +583,9 @@ source_select = Select(value=ev.SOURCE_NAMES[0], options=ev.SOURCE_NAMES, width=
 add_events_btn = Button(label="Add events", button_type="success", width=120)
 make_dist_btn = Button(label="Make distribution from events", button_type="primary", width=240, disabled=True)
 clear_events_btn = Button(label="Clear events", button_type="warning", width=120, disabled=True)
+single_event_input = TextInput(placeholder="Add event at value…", width=200)
+single_event_count_input = TextInput(value="0", width=60, title="")
+single_event_status = Div(text="", width=200, styles={"color": "red", "font-size": "13px", "line-height": "2.2"})
 
 # Top-level rug plot (raw events, before any PNode)
 rug_source = ColumnDataSource(dict(x=[], y=[]))
@@ -642,6 +645,28 @@ def on_clear_events():
     clear_events_btn.disabled = True
 
 
+def on_single_event_input(attr, old, new):
+    global root_events
+    val_str = new.strip()
+    if not val_str:
+        return
+    try:
+        val = float(val_str)
+    except ValueError:
+        single_event_status.text = f"'{val_str}' is not a valid number."
+        single_event_input.value = ""
+        return
+    try:
+        count = int(single_event_count_input.value)
+    except ValueError:
+        count = 0
+    n = max(count, 1)
+    root_events = np.concatenate([root_events, np.full(n, val)])
+    single_event_status.text = f"Added {n} event{'s' if n > 1 else ''} at {val}."
+    single_event_input.value = ""
+    refresh_rug()
+
+
 def on_initial_derive():
     create_child_node(None)
 
@@ -649,6 +674,7 @@ def on_initial_derive():
 add_events_btn.on_click(on_add_events)
 make_dist_btn.on_click(on_make_dist)
 clear_events_btn.on_click(on_clear_events)
+single_event_input.on_change("value", on_single_event_input)
 initial_derive_btn.on_click(on_initial_derive)
 
 # ── Layout ────────────────────────────────────────────────────────────────────
@@ -663,6 +689,11 @@ top_controls = Row(
     make_dist_btn,
     Spacer(width=20),
     clear_events_btn,
+    Spacer(width=30),
+    single_event_input,
+    Div(text="<b>count:</b>", styles={"line-height": "2.2", "margin-left": "6px"}),
+    single_event_count_input,
+    single_event_status,
 )
 
 root_col = Column(
