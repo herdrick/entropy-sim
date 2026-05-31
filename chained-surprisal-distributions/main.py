@@ -1,4 +1,3 @@
-# run with "bokeh serve start-with-detailed-prompt/foo.py --dev"
 import numpy as np
 np.set_printoptions(formatter={'float': lambda x: f"{x},"})  # Note: This leaves a trailing comma at the very end of the array, but it will restore commas between the elements in your server logs.
 
@@ -632,7 +631,7 @@ def refresh_rug():
 
 
 def on_add_events():
-    global root_events, all_events
+    global root_events, all_events, history_index
     try:
         n = int(n_events_input.value)
         if n <= 0:
@@ -640,8 +639,11 @@ def on_add_events():
     except ValueError:
         n = 1000
         n_events_input.value = "1000"
+    was_at_end = history_index == len(all_events)
     new_ev = ev.get_events(n, source_select.value)
     all_events = np.concatenate([all_events, new_ev])
+    if was_at_end:
+        history_index = len(all_events)
     root_events = all_events[:history_index].copy()
     refresh_rug()
     on_make_dist()
@@ -666,7 +668,7 @@ def on_clear_events():
 
 
 def on_single_event_input(attr, old, new):
-    global root_events, all_events
+    global root_events, all_events, history_index
     val_str = new.strip()
     if not val_str:
         return
@@ -681,7 +683,10 @@ def on_single_event_input(attr, old, new):
     except ValueError:
         count = 0
     n = max(count, 1)
+    was_at_end = history_index == len(all_events)
     all_events = np.concatenate([all_events, np.full(n, val)])
+    if was_at_end:
+        history_index = len(all_events)
     root_events = all_events[:history_index].copy()
     single_event_status.text = f"Added {n} event{'s' if n > 1 else ''} at {val}."
     single_event_input.value = ""
