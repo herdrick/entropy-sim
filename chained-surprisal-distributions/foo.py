@@ -605,7 +605,7 @@ initial_derive_btn = Button(label="View derived distribution", button_type="prim
 
 history_back_btn = Button(label="◀", width=50, disabled=True)
 history_fwd_btn = Button(label="▶", width=50, disabled=True)
-history_slider = Slider(start=0, end=1, value=0, step=1, title="", width=350, disabled=True)
+history_slider = Slider(start=0, end=1, value=0, step=1, title="", sizing_mode="stretch_width", disabled=True)
 history_label = Div(text="Step 0 of 0", styles={"line-height": "2.2", "font-size": "13px"})
 
 
@@ -622,10 +622,7 @@ def update_transport_state():
     history_label.text = f"Step {history_index} of {n}"
     history_back_btn.disabled = at_start
     history_fwd_btn.disabled = at_end
-    locked = not at_end
-    add_events_btn.disabled = locked
-    clear_events_btn.disabled = locked or len(root_events) == 0
-    single_event_input.disabled = locked
+    clear_events_btn.disabled = len(all_events) == 0
 
 
 def refresh_rug():
@@ -645,8 +642,7 @@ def on_add_events():
         n_events_input.value = "1000"
     new_ev = ev.get_events(n, source_select.value)
     all_events = np.concatenate([all_events, new_ev])
-    history_index = len(all_events)
-    root_events = all_events.copy()
+    root_events = all_events[:history_index].copy()
     refresh_rug()
     on_make_dist()
 
@@ -686,8 +682,7 @@ def on_single_event_input(attr, old, new):
         count = 0
     n = max(count, 1)
     all_events = np.concatenate([all_events, np.full(n, val)])
-    history_index = len(all_events)
-    root_events = all_events.copy()
+    root_events = all_events[:history_index].copy()
     single_event_status.text = f"Added {n} event{'s' if n > 1 else ''} at {val}."
     single_event_input.value = ""
     refresh_rug()
@@ -755,6 +750,7 @@ transport_row = Row(
     history_fwd_btn,
     Spacer(width=10),
     history_label,
+    sizing_mode="stretch_width",
 )
 
 root_col = Column(
