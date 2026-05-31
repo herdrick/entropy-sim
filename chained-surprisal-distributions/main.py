@@ -7,7 +7,7 @@ from typing import Optional
 from bokeh.plotting import figure, curdoc
 from bokeh.models import (
     ColumnDataSource, CustomJS, Div, TextInput, Button, Row, Column, Spacer, Select,
-    CheckboxGroup, RadioGroup, Slider, HoverTool,
+    CheckboxGroup, RadioGroup, RadioButtonGroup, Slider, HoverTool,
 )
 import events as ev
 
@@ -576,7 +576,10 @@ def create_child_node(parent_node):
 # ── Top-level event controls ─────────────────────────────────────────────────
 
 n_events_input = TextInput(value="1000", title="", width=80)
-source_select = Select(value=ev.SOURCE_NAMES[0], options=ev.SOURCE_NAMES, width=200)
+family_select = Select(value=ev.FAMILY_NAMES[0], options=ev.FAMILY_NAMES, width=150)
+append_replace_radio = RadioButtonGroup(labels=["Append", "Replace"], active=0)
+_current_param_sliders: list = []
+dist_params_row = Row()
 add_events_btn = Button(label="Add events", button_type="success", width=120)
 clear_events_btn = Button(label="Clear events", button_type="warning", width=120, disabled=True)
 single_event_input = TextInput(placeholder="Add event at value…", width=200)
@@ -632,6 +635,9 @@ def refresh_rug():
 
 def on_add_events():
     global root_events, all_events, history_index
+    if append_replace_radio.active == 1:
+        do_replace()
+        return
     try:
         n = int(n_events_input.value)
         if n <= 0:
@@ -640,7 +646,7 @@ def on_add_events():
         n = 1000
         n_events_input.value = "1000"
     was_at_end = history_index == len(all_events)
-    new_ev = ev.get_events(n, source_select.value)
+    new_ev = ev.get_events(n, family_select.value, get_current_params())
     all_events = np.concatenate([all_events, new_ev])
     if was_at_end:
         history_index = len(all_events)
@@ -683,15 +689,66 @@ def on_single_event_input(attr, old, new):
     except ValueError:
         count = 0
     n = max(count, 1)
-    was_at_end = history_index == len(all_events)
-    all_events = np.concatenate([all_events, np.full(n, val)])
-    if was_at_end:
-        history_index = len(all_events)
+    if append_replace_radio.active == 1:
+        all_events = np.full(n, val)
+        history_index = n
+    else:
+        was_at_end = history_index == len(all_events)
+        all_events = np.concatenate([all_events, np.full(n, val)])
+        if was_at_end:
+            history_index = len(all_events)
     root_events = all_events[:history_index].copy()
     single_event_status.text = f"Added {n} event{'s' if n > 1 else ''} at {val}."
     single_event_input.value = ""
     refresh_rug()
     on_make_dist()
+
+
+def make_param_sliders(family_name):
+    sliders = []
+    for spec in ev.FAMILIES[family_name]["params"]:
+        s = Slider(
+            start=spec["start"], end=spec["end"],
+            value=spec["value"], step=spec["step"],
+            title=spec["name"], width=200,
+        )
+        sliders.append(s)
+    return sliders
+
+
+def get_current_params():
+    return {s.title: s.value for s in _current_param_sliders}
+
+
+def do_replace():
+    global root_events, all_events, history_index
+    try:
+        n = int(n_events_input.value)
+        if n <= 0:
+            raise ValueError
+    except ValueError:
+        n = 1000
+    new_ev = ev.get_events(n, family_select.value, get_current_params())
+    all_events = new_ev.copy()
+    history_index = len(all_events)
+    root_events = all_events.copy()
+    refresh_rug()
+    on_make_dist()
+
+
+def on_param_slider_change(attr, old, new):
+    if append_replace_radio.active == 1:
+        do_replace()
+
+
+def on_family_change(attr, old, new):
+    global _current_param_sliders
+    _current_param_sliders = make_param_sliders(new)
+    dist_params_row.children = list(_current_param_sliders)
+    for s in _current_param_sliders:
+        s.on_change("value_throttled", on_param_slider_change)
+    if append_replace_radio.active == 1:
+        do_replace()
 
 
 def on_initial_derive():
@@ -702,6 +759,13 @@ add_events_btn.on_click(on_add_events)
 clear_events_btn.on_click(on_clear_events)
 single_event_input.on_change("value", on_single_event_input)
 initial_derive_btn.on_click(on_initial_derive)
+family_select.on_change("value", on_family_change)
+
+# Initialize param sliders for the default family
+_current_param_sliders = make_param_sliders(ev.FAMILY_NAMES[0])
+dist_params_row.children = list(_current_param_sliders)
+for _s in _current_param_sliders:
+    _s.on_change("value_throttled", on_param_slider_change)
 
 
 def apply_history_index(idx):
@@ -732,19 +796,26 @@ history_fwd_btn.on_click(on_history_fwd)
 
 # ── Layout ────────────────────────────────────────────────────────────────────
 
-top_controls = Row(
-    source_select,
-    Spacer(width=10),
-    add_events_btn,
-    Div(text="<b>n =</b>", styles={"line-height": "2.2", "margin-left": "6px"}),
-    n_events_input,
-    Spacer(width=20),
-    clear_events_btn,
-    Spacer(width=30),
-    single_event_input,
-    Div(text="<b>count:</b>", styles={"line-height": "2.2", "margin-left": "6px"}),
-    single_event_count_input,
-    single_event_status,
+top_controls = Column(
+    Row(
+        family_select,
+        Spacer(width=10),
+        dist_params_row,
+        Spacer(width=20),
+        append_replace_radio,
+        Spacer(width=20),
+        add_events_btn,
+        Div(text="<b>n =</b>", styles={"line-height": "2.2", "margin-left": "6px"}),
+        n_events_input,
+        Spacer(width=20),
+        clear_events_btn,
+    ),
+    Row(
+        single_event_input,
+        Div(text="<b>count:</b>", styles={"line-height": "2.2", "margin-left": "6px"}),
+        single_event_count_input,
+        single_event_status,
+    ),
 )
 
 transport_row = Row(

@@ -1,22 +1,40 @@
 import scipy.stats
 import numpy as np
 
-SOURCES = {
-    "Uniform(0, 1)":          lambda n: scipy.stats.uniform.rvs(size=n),
-    "Normal(0, 1)":           lambda n: scipy.stats.norm.rvs(loc=0, scale=1, size=n),
-    "Normal(0, 3)":           lambda n: scipy.stats.norm.rvs(loc=0, scale=3, size=n),
-    "Bimodal Normal":         lambda n: np.where(
-                                  np.random.random(n) < 0.5,
-                                  scipy.stats.norm.rvs(loc=-3, scale=1, size=n),
-                                  scipy.stats.norm.rvs(loc=3,  scale=1, size=n),
-                              ),
-    "Beta(2, 5)":             lambda n: scipy.stats.beta.rvs(2, 5, size=n),
-    "Beta(0.5, 0.5)":         lambda n: scipy.stats.beta.rvs(0.5, 0.5, size=n),
-    "Exponential(λ=1)":       lambda n: scipy.stats.expon.rvs(scale=1, size=n),
+FAMILIES = {
+    "Uniform": {
+        "params": [
+            {"name": "low",  "start": -10, "end": 10, "value":  0.0, "step": 0.1},
+            {"name": "high", "start": -10, "end": 10, "value":  1.0, "step": 0.1},
+        ],
+        "fn": lambda p, n: scipy.stats.uniform.rvs(
+            loc=p["low"], scale=max(p["high"] - p["low"], 1e-6), size=n
+        ),
+    },
+    "Normal": {
+        "params": [
+            {"name": "μ", "start": -10, "end": 10,  "value": 0.0, "step": 0.1},
+            {"name": "σ", "start":  0.1, "end": 10, "value": 1.0, "step": 0.1},
+        ],
+        "fn": lambda p, n: scipy.stats.norm.rvs(loc=p["μ"], scale=p["σ"], size=n),
+    },
+    "Beta": {
+        "params": [
+            {"name": "α", "start": 0.1, "end": 10, "value": 2.0, "step": 0.1},
+            {"name": "β", "start": 0.1, "end": 10, "value": 5.0, "step": 0.1},
+        ],
+        "fn": lambda p, n: scipy.stats.beta.rvs(p["α"], p["β"], size=n),
+    },
+    "Exponential": {
+        "params": [
+            {"name": "λ", "start": 0.1, "end": 10, "value": 1.0, "step": 0.1},
+        ],
+        "fn": lambda p, n: scipy.stats.expon.rvs(scale=1.0 / p["λ"], size=n),
+    },
 }
 
-SOURCE_NAMES = list(SOURCES.keys())
+FAMILY_NAMES = list(FAMILIES.keys())
 
 
-def get_events(n, source=SOURCE_NAMES[0]):
-    return SOURCES[source](n)
+def get_events(n, family, params):
+    return FAMILIES[family]["fn"](params, n)
