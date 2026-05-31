@@ -24,8 +24,8 @@ PLOT_WIDTH = 900
 root_events = np.array([], dtype=float)   # accumulated raw events
 root_node: Optional["PNode"] = None       # head of the singly-linked list
 
-event_history: list = [np.array([], dtype=float)]  # snapshots; index 0 = empty
-history_index: int = 0
+all_events: np.ndarray = np.array([], dtype=float)  # all events ever (reset on Clear)
+history_index: int = 0  # == number of events visible at current step
 _transport_cb_guard: bool = False
 
 
@@ -611,7 +611,7 @@ history_label = Div(text="Step 0 of 0", styles={"line-height": "2.2", "font-size
 
 def update_transport_state():
     global _transport_cb_guard
-    n = len(event_history) - 1
+    n = len(all_events)
     at_end = history_index == n
     at_start = history_index == 0
     _transport_cb_guard = True
@@ -635,7 +635,7 @@ def refresh_rug():
 
 
 def on_add_events():
-    global root_events
+    global root_events, all_events
     try:
         n = int(n_events_input.value)
         if n <= 0:
@@ -644,8 +644,9 @@ def on_add_events():
         n = 1000
         n_events_input.value = "1000"
     new_ev = ev.get_events(n, source_select.value)
-    root_events = np.concatenate([root_events, new_ev])
-    push_history(root_events)
+    all_events = np.concatenate([all_events, new_ev])
+    history_index = len(all_events)
+    root_events = all_events.copy()
     refresh_rug()
     on_make_dist()
 
@@ -658,9 +659,9 @@ def on_make_dist():
 
 
 def on_clear_events():
-    global root_events, event_history, history_index
+    global root_events, all_events, history_index
     root_events = np.array([], dtype=float)
-    event_history = [np.array([], dtype=float)]
+    all_events = np.array([], dtype=float)
     history_index = 0
     rug_source.data = dict(x=[], y=[])
     rug_fig.title.text = "Events (0)"
@@ -669,7 +670,7 @@ def on_clear_events():
 
 
 def on_single_event_input(attr, old, new):
-    global root_events
+    global root_events, all_events
     val_str = new.strip()
     if not val_str:
         return
@@ -684,8 +685,9 @@ def on_single_event_input(attr, old, new):
     except ValueError:
         count = 0
     n = max(count, 1)
-    root_events = np.concatenate([root_events, np.full(n, val)])
-    push_history(root_events)
+    all_events = np.concatenate([all_events, np.full(n, val)])
+    history_index = len(all_events)
+    root_events = all_events.copy()
     single_event_status.text = f"Added {n} event{'s' if n > 1 else ''} at {val}."
     single_event_input.value = ""
     refresh_rug()
@@ -702,17 +704,10 @@ single_event_input.on_change("value", on_single_event_input)
 initial_derive_btn.on_click(on_initial_derive)
 
 
-def push_history(events_arr):
-    global event_history, history_index
-    event_history = event_history[:history_index + 1]
-    event_history.append(events_arr.copy())
-    history_index = len(event_history) - 1
-
-
 def apply_history_index(idx):
     global root_events, history_index
-    history_index = max(0, min(idx, len(event_history) - 1))
-    root_events = event_history[history_index].copy()
+    history_index = max(0, min(idx, len(all_events)))
+    root_events = all_events[:history_index].copy()
     refresh_rug()
     on_make_dist()
 
