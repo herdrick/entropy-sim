@@ -12,6 +12,7 @@ SOURCES = {
                               ),
     "Beta(2, 5)":             lambda n: scipy.stats.beta.rvs(2, 5, size=n),
     "Beta(0.5, 0.5)":         lambda n: scipy.stats.beta.rvs(0.5, 0.5, size=n),
+    "Exponential(λ=1)":       lambda n: scipy.stats.expon.rvs(scale=1, size=n),
 }
 
 SOURCE_NAMES = list(SOURCES.keys())
