@@ -24,6 +24,10 @@ PLOT_WIDTH = 900
 root_events = np.array([], dtype=float)   # accumulated raw events
 root_node: Optional["PNode"] = None       # head of the singly-linked list
 
+event_history: list = [np.array([], dtype=float)]  # snapshots; index 0 = empty
+history_index: int = 0
+_transport_cb_guard: bool = False
+
 
 @dataclass
 class PNode:
@@ -599,12 +603,35 @@ rug_fig.segment(
 # Initial "View derived distribution" button (before any nodes exist)
 initial_derive_btn = Button(label="View derived distribution", button_type="primary", width=220)
 
+history_back_btn = Button(label="◀", width=50, disabled=True)
+history_fwd_btn = Button(label="▶", width=50, disabled=True)
+history_slider = Slider(start=0, end=1, value=0, step=1, title="", width=350, disabled=True)
+history_label = Div(text="Step 0 of 0", styles={"line-height": "2.2", "font-size": "13px"})
+
+
+def update_transport_state():
+    global _transport_cb_guard
+    n = len(event_history) - 1
+    at_end = history_index == n
+    at_start = history_index == 0
+    _transport_cb_guard = True
+    history_slider.end = max(n, 1)
+    history_slider.value = history_index
+    history_slider.disabled = n == 0
+    _transport_cb_guard = False
+    history_label.text = f"Step {history_index} of {n}"
+    history_back_btn.disabled = at_start
+    history_fwd_btn.disabled = at_end
+    locked = not at_end
+    add_events_btn.disabled = locked
+    clear_events_btn.disabled = locked or len(root_events) == 0
+    single_event_input.disabled = locked
+
 
 def refresh_rug():
     rug_source.data = dict(x=root_events, y=np.zeros(len(root_events)))
     rug_fig.title.text = f"Events ({len(root_events)})"
-    has_events = len(root_events) > 0
-    clear_events_btn.disabled = not has_events
+    update_transport_state()
 
 
 def on_add_events():
@@ -618,6 +645,7 @@ def on_add_events():
         n_events_input.value = "1000"
     new_ev = ev.get_events(n, source_select.value)
     root_events = np.concatenate([root_events, new_ev])
+    push_history(root_events)
     refresh_rug()
     on_make_dist()
 
@@ -630,11 +658,14 @@ def on_make_dist():
 
 
 def on_clear_events():
-    global root_events
+    global root_events, event_history, history_index
     root_events = np.array([], dtype=float)
+    event_history = [np.array([], dtype=float)]
+    history_index = 0
     rug_source.data = dict(x=[], y=[])
     rug_fig.title.text = "Events (0)"
-    clear_events_btn.disabled = True
+    on_make_dist()
+    update_transport_state()
 
 
 def on_single_event_input(attr, old, new):
@@ -654,6 +685,7 @@ def on_single_event_input(attr, old, new):
         count = 0
     n = max(count, 1)
     root_events = np.concatenate([root_events, np.full(n, val)])
+    push_history(root_events)
     single_event_status.text = f"Added {n} event{'s' if n > 1 else ''} at {val}."
     single_event_input.value = ""
     refresh_rug()
@@ -668,6 +700,40 @@ add_events_btn.on_click(on_add_events)
 clear_events_btn.on_click(on_clear_events)
 single_event_input.on_change("value", on_single_event_input)
 initial_derive_btn.on_click(on_initial_derive)
+
+
+def push_history(events_arr):
+    global event_history, history_index
+    event_history = event_history[:history_index + 1]
+    event_history.append(events_arr.copy())
+    history_index = len(event_history) - 1
+
+
+def apply_history_index(idx):
+    global root_events, history_index
+    history_index = max(0, min(idx, len(event_history) - 1))
+    root_events = event_history[history_index].copy()
+    refresh_rug()
+    on_make_dist()
+
+
+def on_history_slider_change(attr, old, new):
+    if _transport_cb_guard:
+        return
+    apply_history_index(int(new))
+
+
+def on_history_back():
+    apply_history_index(history_index - 1)
+
+
+def on_history_fwd():
+    apply_history_index(history_index + 1)
+
+
+history_slider.on_change("value", on_history_slider_change)
+history_back_btn.on_click(on_history_back)
+history_fwd_btn.on_click(on_history_fwd)
 
 # ── Layout ────────────────────────────────────────────────────────────────────
 
@@ -686,8 +752,19 @@ top_controls = Row(
     single_event_status,
 )
 
+transport_row = Row(
+    history_back_btn,
+    Spacer(width=5),
+    history_slider,
+    Spacer(width=5),
+    history_fwd_btn,
+    Spacer(width=10),
+    history_label,
+)
+
 root_col = Column(
     top_controls,
+    transport_row,
     rug_fig,
     initial_derive_btn,
 )
