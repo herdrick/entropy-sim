@@ -746,7 +746,7 @@ def on_family_change(attr, old, new):
     _current_param_sliders = make_param_sliders(new)
     dist_params_row.children = list(_current_param_sliders)
     for s in _current_param_sliders:
-        s.on_change("value_throttled", on_param_slider_change)
+        s.on_change("value", on_param_slider_change)
     if append_replace_radio.active == 1:
         do_replace()
 
@@ -765,7 +765,7 @@ family_select.on_change("value", on_family_change)
 _current_param_sliders = make_param_sliders(ev.FAMILY_NAMES[0])
 dist_params_row.children = list(_current_param_sliders)
 for _s in _current_param_sliders:
-    _s.on_change("value_throttled", on_param_slider_change)
+    _s.on_change("value", on_param_slider_change)
 
 
 def apply_history_index(idx):
