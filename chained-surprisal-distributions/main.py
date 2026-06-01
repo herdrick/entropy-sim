@@ -26,6 +26,8 @@ root_node: Optional["PNode"] = None       # head of the singly-linked list
 all_events: np.ndarray = np.array([], dtype=float)  # all events ever (reset on Clear)
 history_index: int = 0  # == number of events visible at current step
 _transport_cb_guard: bool = False
+_column_count: int = 1
+_all_nodes: list = []
 
 
 @dataclass
@@ -62,6 +64,7 @@ class PNode:
     current_edges: np.ndarray = None
     current_probs: np.ndarray = None
     layout: Column = None
+    edge_panel: object = None
     propagates: bool = False
     gang_checkbox: CheckboxGroup = None
 
@@ -158,6 +161,64 @@ def node_index(node):
         cur = cur.child
         idx += 1
     return idx
+
+
+def plot_width_for_cols(n_cols):
+    return max(220, (900 - 10 * (n_cols - 1)) // n_cols)
+
+
+def rebuild_grid():
+    n = _column_count
+    pw = plot_width_for_cols(n)
+    for node in _all_nodes:
+        node.figure.width = pw
+        node.rug_fig.width = pw
+        if n == 1:
+            for s in (node.prior_alpha_slider, node.prior_mu_slider, node.prior_sigma_slider):
+                s.width = 250
+            node.layout.children[0] = Row(
+                node.prior_alpha_slider, Spacer(width=20),
+                node.prior_mu_slider, Spacer(width=20),
+                node.prior_sigma_slider,
+            )
+            node.layout.children[2] = Row(node.figure, Spacer(width=20), node.edge_panel)
+            node.edge_status.width = 300
+            node.equal_width_preview.width = 200
+            node.equal_width_status.width = 300
+            node.derive_dropdown.width = 250
+            node.derive_btn.width = 220
+            node.kl_div_display.width = 600
+            node.layout.children[4] = Row(
+                node.derive_dropdown, node.derive_btn,
+                node.gang_checkbox, node.kl_div_display,
+            )
+        else:
+            for s in (node.prior_alpha_slider, node.prior_mu_slider, node.prior_sigma_slider):
+                s.width = min(200, pw)
+            node.layout.children[0] = Column(
+                node.prior_alpha_slider,
+                node.prior_mu_slider,
+                node.prior_sigma_slider,
+            )
+            node.layout.children[2] = Column(node.figure, node.edge_panel)
+            node.edge_status.width = min(120, pw)
+            node.equal_width_preview.width = min(80, pw // 3)
+            node.equal_width_status.width = min(120, pw)
+            node.derive_dropdown.width = pw
+            node.derive_btn.width = pw
+            node.kl_div_display.width = pw
+            node.layout.children[4] = Column(
+                node.derive_dropdown,
+                node.derive_btn,
+                node.gang_checkbox,
+                node.kl_div_display,
+            )
+    base = root_col.children[:4]
+    node_rows = []
+    for i in range(0, len(_all_nodes), n):
+        chunk = _all_nodes[i:i+n]
+        node_rows.append(Row(*[nd.layout for nd in chunk], spacing=0, sizing_mode="fixed") if len(chunk) > 1 else chunk[0].layout)
+    root_col.children = base + node_rows
 
 
 # ── Core recomputation ───────────────────────────────────────────────────────
@@ -520,6 +581,7 @@ def make_p_node(initial_events):
         node.equal_width_edge_at_ends,
     )
     edge_panel = Column(divide_section, Spacer(height=10), equal_width_section)
+    node.edge_panel = edge_panel
 
     derive_row = Row(node.derive_dropdown, node.derive_btn, node.gang_checkbox, node.kl_div_display)
 
@@ -564,8 +626,9 @@ def create_child_node(parent_node):
         root_node = new_node
         initial_derive_btn.disabled = True
 
-    # Append to root layout
-    root_col.children.append(new_node.layout)
+    # Append to node list and rebuild grid
+    _all_nodes.append(new_node)
+    rebuild_grid()
 
     # Recompute so it shows a distribution
     recompute_from(new_node)
@@ -604,6 +667,15 @@ rug_fig.segment(
 
 # Initial "View derived distribution" button (before any nodes exist)
 initial_derive_btn = Button(label="View derived distribution", button_type="primary", width=220)
+
+col_count_radio = RadioButtonGroup(labels=["1 col", "2 col", "3 col"], active=0)
+
+def on_col_count_change(attr, old, new):
+    global _column_count
+    _column_count = new + 1
+    rebuild_grid()
+
+col_count_radio.on_change("active", on_col_count_change)
 
 history_back_btn = Button(label="◀", width=50, disabled=True)
 history_fwd_btn = Button(label="▶", width=50, disabled=True)
@@ -815,6 +887,9 @@ top_controls = Column(
         Div(text="<b>count:</b>", styles={"line-height": "2.2", "margin-left": "6px"}),
         single_event_count_input,
         single_event_status,
+        Spacer(width=30),
+        Div(text="<b>Layout:</b>", styles={"line-height": "2.2"}),
+        col_count_radio,
     ),
 )
 
