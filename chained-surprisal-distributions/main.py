@@ -176,7 +176,7 @@ def rebuild_grid():
             node.prior_sigma_slider,
         )
         node.layout.children[2] = Row(node.figure, Spacer(width=20), node.edge_panel)
-        node.kl_div_display.width = 600
+        node.kl_div_display.width = None
         node.layout.children[4] = Row(
             node.derive_dropdown, node.derive_btn,
             node.gang_checkbox, node.kl_div_display,
@@ -374,7 +374,7 @@ def make_p_node(initial_events):
     # ── Bin edge controls ────────────────────────────────────────────────
     node.divide_bin_btn = Button(label="Add one bin edge", button_type="default", width=120)
     node.edge_input = TextInput(placeholder="Edge value, then Enter", width=220, visible=False)
-    node.edge_status = Div(text="", width=300, styles={"color": "red", "font-size": "13px"})
+    node.edge_status = Div(text="", styles={"color": "red", "font-size": "13px"})
 
     node.equal_width_btn = Button(label="Add bin edges", button_type="default", width=120)
     node.equal_width_left_input = TextInput(placeholder="Left", width=80, visible=False)
@@ -382,8 +382,8 @@ def make_p_node(initial_events):
     node.equal_width_count_input = TextInput(placeholder="Count", width=80, visible=False)
     node.equal_width_submit_btn = Button(label="Add evenly spaced edges", button_type="success", width=200, visible=False)
     node.equal_width_edge_at_ends = CheckboxGroup(labels=["also add edges at the start and end of the interval"], active=[], visible=False)
-    node.equal_width_preview = Div(text="", width=200, styles={"font-size": "13px", "line-height": "2.2"})
-    node.equal_width_status = Div(text="", width=300, styles={"color": "red", "font-size": "13px"})
+    node.equal_width_preview = Div(text="", styles={"font-size": "13px", "line-height": "2.2"})
+    node.equal_width_status = Div(text="", styles={"color": "red", "font-size": "13px"})
 
     # ── Derive controls ──────────────────────────────────────────────────
     node.derive_dropdown = Select(
@@ -392,7 +392,7 @@ def make_p_node(initial_events):
         width=250,
     )
     node.derive_btn = Button(label="View derived distribution", button_type="primary", width=220)
-    node.kl_div_display = Div(text="", width=600, styles={"line-height": "2.2", "margin-left": "10px", "font-size": "13px"})
+    node.kl_div_display = Div(text="", styles={"line-height": "2.2", "margin-left": "10px", "font-size": "13px"})
 
     # ── Per-node callbacks ───────────────────────────────────────────────
 
