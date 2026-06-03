@@ -37,8 +37,6 @@ class PNode:
     events: np.ndarray = field(default_factory=lambda: np.array([], dtype=float))
     figure: object = None
     source: ColumnDataSource = None
-    rug_fig: object = None
-    rug_source: ColumnDataSource = None
     edge_line_source: ColumnDataSource = None
     child: Optional["PNode"] = None
     parent: Optional["PNode"] = None
@@ -167,7 +165,6 @@ def rebuild_grid():
     n = _column_count
     for node in _all_nodes:
         node.figure.width = PLOT_WIDTH
-        node.rug_fig.width = PLOT_WIDTH
         for s in (node.prior_alpha_slider, node.prior_mu_slider, node.prior_sigma_slider):
             s.width = 250
         node.layout.children[0] = Row(
@@ -175,9 +172,9 @@ def rebuild_grid():
             node.prior_mu_slider, Spacer(width=20),
             node.prior_sigma_slider,
         )
-        node.layout.children[2] = Row(node.figure, Spacer(width=20), node.edge_panel)
+        node.layout.children[1] = Row(node.figure, Spacer(width=20), node.edge_panel)
         node.kl_div_display.width = None
-        node.layout.children[4] = Row(
+        node.layout.children[3] = Row(
             node.derive_dropdown, node.derive_btn,
             node.gang_checkbox, node.kl_div_display,
         )
@@ -231,10 +228,6 @@ def recompute_from(node):
     interior = sorted(node.interior_edges)
     node.edge_line_source.data = dict(x=interior)
 
-    # Update this node's rug plot
-    node.rug_source.data = dict(x=node.events, y=np.zeros(len(node.events)))
-    node.rug_fig.title.text = f"Events ({len(node.events)})"
-
     # Push output to child
     if node.child is not None:
         if node.output_mode == "passthru":
@@ -279,30 +272,13 @@ def make_p_node(initial_events):
     node = PNode()
     node.events = initial_events
 
-    # Rug plot for this node
-    node.rug_source = ColumnDataSource(dict(x=initial_events, y=np.zeros(len(initial_events))))
-    node.rug_fig = figure(
-        width=PLOT_WIDTH, height=80,
-        x_range=(X_MIN, X_MAX), y_range=(-0.5, 0.5),
-        tools=TOOLS, toolbar_location="right",
-        title=f"Events ({len(initial_events)})",
-    )
-    node.rug_fig.yaxis.visible = False
-    node.rug_fig.ygrid.visible = False
-    node.rug_fig.segment(
-        x0="x", y0=-0.4, x1="x", y1=0.4,
-        source=node.rug_source,
-        line_color="#888888", line_width=1, alpha=0.02,
-    )
-
-    # P distribution figure — independent x_range, shared with its own rug
     edges0 = np.array([-np.inf, np.inf])
     probs0 = compute_probabilities(edges0, initial_events)
     node.source = ColumnDataSource(make_column_data_source_data(edges0, probs0, use_density=False))
 
     node.figure = figure(
         width=PLOT_WIDTH, height=380,
-        x_range=node.rug_fig.x_range,
+        x_range=(X_MIN, X_MAX),
         tools=TOOLS, toolbar_location="right",
         title="P  |  Entropy = 0.0000 bits",
     )
@@ -349,7 +325,7 @@ def make_p_node(initial_events):
     )
 
     # JS callback for infinite-edge stretching
-    _range_cb = CustomJS(args=dict(source=node.source, x_range=node.rug_fig.x_range, y_mode=node.y_mode_radio), code="""
+    _range_cb = CustomJS(args=dict(source=node.source, x_range=node.figure.x_range, y_mode=node.y_mode_radio), code="""
         const data  = source.data;
         const li    = data['left_inf'];
         const ri    = data['right_inf'];
@@ -368,8 +344,8 @@ def make_p_node(initial_events):
         const top = y_mode.active === 1 ? density : prob.slice();
         source.data = {...data, left, right, center, width, density, top};
     """)
-    node.rug_fig.x_range.js_on_change('start', _range_cb)
-    node.rug_fig.x_range.js_on_change('end',   _range_cb)
+    node.figure.x_range.js_on_change('start', _range_cb)
+    node.figure.x_range.js_on_change('end',   _range_cb)
 
     # ── Bin edge controls ────────────────────────────────────────────────
     node.divide_bin_btn = Button(label="Add one bin edge", button_type="default", width=120)
@@ -555,7 +531,7 @@ def make_p_node(initial_events):
 
     prior_row = Row(node.prior_alpha_slider, Spacer(width=20), node.prior_mu_slider, Spacer(width=20), node.prior_sigma_slider)
     plot_and_edges = Row(node.figure, Spacer(width=20), edge_panel)
-    node.layout = Column(prior_row, node.rug_fig, plot_and_edges, node.y_mode_radio, derive_row)
+    node.layout = Column(prior_row, plot_and_edges, node.y_mode_radio, derive_row)
 
     return node
 
@@ -617,22 +593,6 @@ single_event_input = TextInput(placeholder="Add event at value…", width=200)
 single_event_count_input = TextInput(value="1", width=60, title="")
 single_event_status = Div(text="", width=200, styles={"color": "red", "font-size": "13px", "line-height": "2.2"})
 
-# Top-level rug plot (raw events, before any PNode)
-rug_source = ColumnDataSource(dict(x=[], y=[]))
-rug_fig = figure(
-    width=PLOT_WIDTH, height=80,
-    x_range=(X_MIN, X_MAX), y_range=(-0.5, 0.5),
-    tools=TOOLS, toolbar_location="right",
-    title="Events (0)",
-)
-rug_fig.yaxis.visible = False
-rug_fig.ygrid.visible = False
-rug_fig.segment(
-    x0="x", y0=-0.4, x1="x", y1=0.4,
-    source=rug_source,
-    line_color="#888888", line_width=1, alpha=0.02,
-)
-
 # Initial "View derived distribution" button (before any nodes exist)
 initial_derive_btn = Button(label="View derived distribution", button_type="primary", width=220)
 
@@ -668,8 +628,6 @@ def update_transport_state():
 
 
 def refresh_rug():
-    rug_source.data = dict(x=root_events, y=np.zeros(len(root_events)))
-    rug_fig.title.text = f"Events ({len(root_events)})"
     update_transport_state()
 
 
@@ -707,8 +665,6 @@ def on_clear_events():
     root_events = np.array([], dtype=float)
     all_events = np.array([], dtype=float)
     history_index = 0
-    rug_source.data = dict(x=[], y=[])
-    rug_fig.title.text = "Events (0)"
     on_make_dist()
     update_transport_state()
 
@@ -875,7 +831,6 @@ transport_row = Row(
 root_col = Column(
     top_controls,
     transport_row,
-    rug_fig,
     initial_derive_btn,
 )
 
