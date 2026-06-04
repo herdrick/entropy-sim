@@ -178,7 +178,7 @@ def rebuild_grid():
             node.derive_dropdown, node.derive_btn,
             node.gang_checkbox, node.kl_div_display,
         )
-    base = root_col.children[:4]
+    base = root_col.children[:3]
     node_rows = []
     for i in range(0, len(_all_nodes), n):
         chunk = _all_nodes[i:i+n]
