@@ -233,33 +233,29 @@ def recompute_from(node):
             bin_indices = np.searchsorted(interior, node.events)
             node.child.events = -np.log2(probs[bin_indices])
         recompute_from(node.child)
-        update_kl_display(node)
-    else:
-        if node.kl_div_display is not None:
-            node.kl_div_display.text = ""
+
+    refresh_kl_display(node)
     if node.parent is not None:
-        update_kl_display(node.parent)
+        refresh_kl_display(node.parent)
 
 
-def update_kl_display(parent):
-    child = parent.child
-    if child is None or parent.kl_div_display is None:
+def refresh_kl_display(node):
+    """Show KL(node ‖ parent) with ↑ and KL(node ‖ child) with ↓, when each exists."""
+    if node.kl_div_display is None or node.current_edges is None:
         return
-    pe, pp = parent.current_edges, parent.current_probs
-    ce, cp = child.current_edges, child.current_probs
-    if pe is None or ce is None:
-        parent.kl_div_display.text = ""
-        return
-    pi = node_index(parent) + 1
-    ci = node_index(child) + 1
-    kl_pc = kl_divergence_bits(pe, pp, ce, cp)
-    kl_cp = kl_divergence_bits(ce, cp, pe, pp)
+    edges, probs = node.current_edges, node.current_probs
     parts = []
-    if kl_pc is not None:
-        parts.append(f"KL divergence ↓ {kl_pc:.4f} bits")
-    if kl_cp is not None:
-        parts.append(f"KL divergence ↑ {kl_cp:.4f} bits")
-    parent.kl_div_display.text = " &nbsp;&nbsp; ".join(parts)
+    parent = node.parent
+    if parent is not None and parent.current_edges is not None:
+        kl_up = kl_divergence_bits(edges, probs, parent.current_edges, parent.current_probs)
+        if kl_up is not None:
+            parts.append(f"KL divergence ↑ {kl_up:.4f} bits")
+    child = node.child
+    if child is not None and child.current_edges is not None:
+        kl_down = kl_divergence_bits(edges, probs, child.current_edges, child.current_probs)
+        if kl_down is not None:
+            parts.append(f"KL divergence ↓ {kl_down:.4f} bits")
+    node.kl_div_display.text = " &nbsp;&nbsp; ".join(parts)
 
 
 # ── PNode factory ────────────────────────────────────────────────────────────
@@ -482,10 +478,8 @@ def create_child_node(parent_node):
     _all_nodes.append(new_node)
     rebuild_grid()
 
-    # Recompute so it shows a distribution
+    # Recompute so it shows a distribution (also refreshes KL displays for new_node and its parent)
     recompute_from(new_node)
-    if parent_node is not None:
-        update_kl_display(parent_node)
 
 
 # ── Top-level event controls ─────────────────────────────────────────────────
