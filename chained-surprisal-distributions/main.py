@@ -353,7 +353,7 @@ def make_p_node(initial_events):
         title="Evenly spaced: right", width=250,
     )
     node.equal_width_count_slider = Slider(
-        start=0, end=20, value=0, step=1,
+        start=0, end=100, value=0, step=1,
         title="Evenly spaced: edge count", width=250,
     )
 
