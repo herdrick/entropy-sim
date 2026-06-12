@@ -58,6 +58,10 @@ class PNode:
     edge_panel: object = None
     propagates: bool = False
     gang_checkbox: CheckboxGroup = None
+    single_edges: list = field(default_factory=list)
+    add_single_edge_input: object = None
+    add_single_edge_btn: object = None
+    freeze_edge_btn: object = None
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -357,6 +361,11 @@ def make_p_node(initial_events):
         title="Evenly spaced: edge count", width=250,
     )
 
+    # ── Single-edge controls ─────────────────────────────────────────────
+    node.add_single_edge_input = TextInput(placeholder="Value…", width=120)
+    node.add_single_edge_btn = Button(label="Add", width=55)
+    node.freeze_edge_btn = Button(label="Freeze edge", width=100)
+
     # ── Derive controls ──────────────────────────────────────────────────
     node.derive_dropdown = Select(
         value="Surprisal",
@@ -369,7 +378,7 @@ def make_p_node(initial_events):
     # ── Per-node callbacks ───────────────────────────────────────────────
 
     def _sync_edges_and_recompute(n=node):
-        edges = {n.split_point_slider.value}
+        edges = {n.split_point_slider.value} | set(n.single_edges)
         count = int(n.equal_width_count_slider.value)
         left = n.equal_width_left_slider.value
         right = n.equal_width_right_slider.value
@@ -403,6 +412,25 @@ def make_p_node(initial_events):
     def on_propagate_change(attr, old, new, n=node):
         n.propagates = 0 in new
 
+    def on_freeze_edge(n=node):
+        val = n.split_point_slider.value
+        if val not in n.single_edges:
+            n.single_edges.append(val)
+        _sync_edges_and_recompute(n)
+
+    def on_add_single_edge(n=node):
+        val_str = n.add_single_edge_input.value.strip()
+        if not val_str:
+            return
+        try:
+            val = float(val_str)
+        except ValueError:
+            return
+        if val not in n.single_edges:
+            n.single_edges.append(val)
+        n.add_single_edge_input.value = ""
+        _sync_edges_and_recompute(n)
+
     def on_derive(n=node):
         create_child_node(n)
 
@@ -417,10 +445,14 @@ def make_p_node(initial_events):
     node.derive_dropdown.on_change("value", on_output_mode_change)
     node.derive_btn.on_click(on_derive)
     node.gang_checkbox.on_change("active", on_propagate_change)
+    node.freeze_edge_btn.on_click(on_freeze_edge)
+    node.add_single_edge_btn.on_click(on_add_single_edge)
 
     # ── Layout for this node ─────────────────────────────────────────────
     edge_panel = Column(
-        node.split_point_slider,
+        Row(node.add_single_edge_input, Spacer(width=5), node.add_single_edge_btn),
+        Spacer(height=4),
+        Row(node.split_point_slider, Spacer(width=8), node.freeze_edge_btn),
         Spacer(height=10),
         node.equal_width_left_slider,
         node.equal_width_right_slider,
