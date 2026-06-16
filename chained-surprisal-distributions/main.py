@@ -62,6 +62,8 @@ class PNode:
     add_single_edge_input: object = None
     add_single_edge_btn: object = None
     freeze_edge_btn: object = None
+    y_scale_toggle: object = None
+    y_range_adaptive: bool = False
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -213,12 +215,18 @@ def recompute_from(node):
     node.current_edges = edges
     node.current_probs = probs
     use_density = node.y_mode_radio is not None and node.y_mode_radio.active == 1
-    node.source.data = make_column_data_source_data(
+    cds_data = make_column_data_source_data(
         edges, probs, counts=counts,
         x_start=node.figure.x_range.start,
         x_end=node.figure.x_range.end,
         use_density=use_density,
     )
+    node.source.data = cds_data
+    if node.y_range_adaptive:
+        max_top = float(np.max(cds_data['top'])) if len(cds_data['top']) > 0 else 1.0
+        node.figure.y_range.end = max_top * 1.05
+    else:
+        node.figure.y_range.end = 1.0
     idx = node_index(node)
     node.figure.title.text = (
         f"P{idx+1}  |  entropy = {entropy_bits(probs):.4f} bits"
@@ -306,6 +314,9 @@ def make_p_node(initial_events):
 
     # Y-mode radio: probability vs probability density
     node.y_mode_radio = RadioGroup(labels=["Probability", "Probability density"], active=0, inline=True)
+
+    # Y-scale select: fixed 0–1 vs adaptive
+    node.y_scale_toggle = Select(value="fixed", options=[("fixed", "Y: fixed 0–1"), ("adaptive", "Y: adaptive")], width=140)
 
     # Gang checkbox (hidden until node is linked to a parent)
     node.gang_checkbox = CheckboxGroup(labels=["Copy params to child node"], active=[])
@@ -410,6 +421,10 @@ def make_p_node(initial_events):
         else:
             n.source.data = {**data, 'top': data['prob']}
 
+    def on_y_scale_toggle(attr, old, new, n=node):
+        n.y_range_adaptive = (new == "adaptive")
+        recompute_from(n)
+
     def on_prior_change(attr, old, new, n=node):
         recompute_from(n)
 
@@ -451,6 +466,7 @@ def make_p_node(initial_events):
     node.gang_checkbox.on_change("active", on_propagate_change)
     node.freeze_edge_btn.on_click(on_freeze_edge)
     node.add_single_edge_btn.on_click(on_add_single_edge)
+    node.y_scale_toggle.on_change("value", on_y_scale_toggle)
 
     # ── Layout for this node ─────────────────────────────────────────────
     edge_panel = Column(
@@ -471,7 +487,7 @@ def make_p_node(initial_events):
 
     prior_row = Row(node.prior_alpha_slider, Spacer(width=20), node.prior_mu_slider, Spacer(width=20), node.prior_sigma_slider)
     plot_and_edges = Row(node.figure, Spacer(width=20), edge_panel)
-    node.layout = Column(prior_row, plot_and_edges, node.y_mode_radio, derive_row)
+    node.layout = Column(prior_row, plot_and_edges, Row(node.y_mode_radio, Spacer(width=20), node.y_scale_toggle), derive_row)
 
     return node
 
