@@ -7,7 +7,7 @@ from typing import Optional
 from bokeh.plotting import figure, curdoc
 from bokeh.models import (
     ColumnDataSource, CustomJS, Div, TextInput, Button, Row, Column, Spacer, Select,
-    CheckboxGroup, RadioGroup, RadioButtonGroup, Slider, HoverTool,
+    CheckboxGroup, RadioGroup, RadioButtonGroup, Slider, HoverTool, Range1d,
 )
 import events as ev
 
@@ -275,6 +275,7 @@ def make_p_node(initial_events):
     node.figure = figure(
         width=PLOT_WIDTH, height=380,
         x_range=(X_MIN, X_MAX),
+        y_range=Range1d(0, 1),
         tools=TOOLS, toolbar_location="right",
         title="P  |  Entropy = 0.0000 bits",
     )
@@ -295,7 +296,10 @@ def make_p_node(initial_events):
     node.edge_line_source = ColumnDataSource(dict(x=[]))
     node.figure.ray(x="x", y=0, length=0, angle=np.pi/2,
                     source=node.edge_line_source,
-                    line_color="black", line_width=1)
+                    line_color="black", line_alpha=0.08, line_width=1)
+
+    node.figure.xgrid.grid_line_color = None
+    node.figure.ygrid.grid_line_color = None
 
     node.figure.xaxis.axis_label = "Value"
     node.figure.yaxis.axis_label = "Probability"
@@ -357,7 +361,7 @@ def make_p_node(initial_events):
         title="Evenly spaced: right", width=250,
     )
     node.equal_width_count_slider = Slider(
-        start=0, end=100, value=0, step=1,
+        start=0, end=500, value=0, step=1,
         title="Evenly spaced: edge count", width=250,
     )
 
