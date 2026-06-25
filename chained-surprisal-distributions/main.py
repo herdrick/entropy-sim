@@ -32,7 +32,6 @@ _all_nodes: list = []
 
 @dataclass
 class PNode:
-    output_mode: str = "surprisal"       # "passthru" | "surprisal"
     interior_edges: list = field(default_factory=list)
     events: np.ndarray = field(default_factory=lambda: np.array([], dtype=float))
     figure: object = None
@@ -41,7 +40,6 @@ class PNode:
     child: Optional["PNode"] = None
     parent: Optional["PNode"] = None
     # UI widgets
-    derive_dropdown: Select = None
     derive_btn: Button = None
     split_point_slider: Slider = None
     equal_width_left_slider: Slider = None
@@ -64,6 +62,8 @@ class PNode:
     freeze_edge_btn: object = None
     y_scale_toggle: object = None
     y_range_adaptive: bool = False
+    highlight_source: ColumnDataSource = None
+    hover_tool: HoverTool = None
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -110,6 +110,9 @@ def make_column_data_source_data(edges, probs, counts=None, x_start=X_MIN, x_end
         counts = np.zeros(len(probs))
     total = counts.sum()
     raw_prob = counts / total if total > 0 else np.zeros(len(probs))
+    # Actual edge values for trace JS (±inf → ±1e308 so JSON can represent them)
+    left_actual = np.where(left_inf, -1e308, lefts)
+    right_actual = np.where(right_inf, 1e308, rights)
     return dict(
         left=dl, right=dr, top=density if use_density else probs, prob=probs, density=density,
         center=(dl + dr) / 2, width=widths,
@@ -117,6 +120,7 @@ def make_column_data_source_data(edges, probs, counts=None, x_start=X_MIN, x_end
         left_inf=left_inf, right_inf=right_inf,
         count=counts, raw_prob=raw_prob,
         edge_left_str=edge_left_str, edge_right_str=edge_right_str,
+        left_actual=left_actual, right_actual=right_actual,
     )
 
 
@@ -174,8 +178,7 @@ def rebuild_grid():
         node.layout.children[1] = Row(node.figure, Spacer(width=20), node.edge_panel)
         node.kl_div_display.width = None
         node.layout.children[3] = Row(
-            node.derive_dropdown, node.derive_btn,
-            node.gang_checkbox, node.kl_div_display,
+            node.derive_btn, node.gang_checkbox, node.kl_div_display,
         )
     base = root_col.children[:3]
     node_rows = []
@@ -238,12 +241,9 @@ def recompute_from(node):
 
     # Push output to child
     if node.child is not None:
-        if node.output_mode == "passthru":
-            node.child.events = node.events.copy()
-        else:  # surprisal
-            interior = edges[1:-1]
-            bin_indices = np.searchsorted(interior, node.events)
-            node.child.events = -np.log2(probs[bin_indices])
+        interior = edges[1:-1]
+        bin_indices = np.searchsorted(interior, node.events)
+        node.child.events = -np.log2(probs[bin_indices])
         recompute_from(node.child)
 
     refresh_kl_display(node)
@@ -270,6 +270,71 @@ def refresh_kl_display(node):
     node.kl_div_display.text = " &nbsp;&nbsp; ".join(parts)
 
 
+# ── Trace hover feature ──────────────────────────────────────────────────────
+
+trace_checkbox = CheckboxGroup(labels=["Trace event flow on hover"], active=[])
+
+# Placeholder sources used for nodes that have no parent/child yet
+_DUMMY_SOURCE = ColumnDataSource(dict(prob=[], left=[], right=[], top=[], left_actual=[], right_actual=[]))
+_DUMMY_HL_SOURCE = ColumnDataSource(dict(left=[], right=[], top=[], bottom=[]))
+
+_TRACE_HOVER_JS = """
+const indices = cb_data.index.indices;
+const active = trace_active.active.includes(0);
+if (!active || indices.length === 0) {
+    parent_hl.data = {left: [], right: [], top: [], bottom: []};
+    child_hl.data  = {left: [], right: [], top: [], bottom: []};
+    return;
+}
+const k      = indices[0];
+const prob   = source.data['prob'];
+const left_a = source.data['left_actual'];
+const right_a = source.data['right_actual'];
+const bin_left  = left_a[k];
+const bin_right = right_a[k];
+
+// Parent bins whose surprisal (-log2 p) lands in this bin's actual range
+const pp = parent_source.data['prob'];
+if (pp && pp.length > 0) {
+    const pl = parent_source.data['left'];
+    const pr = parent_source.data['right'];
+    const pt = parent_source.data['top'];
+    const hl_l = [], hl_r = [], hl_t = [], hl_b = [];
+    for (let j = 0; j < pp.length; j++) {
+        const surp = -Math.log2(pp[j]);
+        if (surp >= bin_left && surp <= bin_right) {
+            hl_l.push(pl[j]); hl_r.push(pr[j]);
+            hl_t.push(pt[j]); hl_b.push(0);
+        }
+    }
+    parent_hl.data = {left: hl_l, right: hl_r, top: hl_t, bottom: hl_b};
+} else {
+    parent_hl.data = {left: [], right: [], top: [], bottom: []};
+}
+
+// Child bin where this bin's surprisal lands
+const surp = -Math.log2(prob[k]);
+const cp = child_source.data['prob'];
+if (cp && cp.length > 0) {
+    const cla = child_source.data['left_actual'];
+    const cra = child_source.data['right_actual'];
+    const cl  = child_source.data['left'];
+    const cr  = child_source.data['right'];
+    const ct  = child_source.data['top'];
+    const hl_l = [], hl_r = [], hl_t = [], hl_b = [];
+    for (let j = 0; j < cp.length; j++) {
+        if (surp >= cla[j] && surp < cra[j]) {
+            hl_l.push(cl[j]); hl_r.push(cr[j]);
+            hl_t.push(ct[j]); hl_b.push(0);
+            break;
+        }
+    }
+    child_hl.data = {left: hl_l, right: hl_r, top: hl_t, bottom: hl_b};
+} else {
+    child_hl.data = {left: [], right: [], top: [], bottom: []};
+}
+"""
+
 # ── PNode factory ────────────────────────────────────────────────────────────
 
 def make_p_node(initial_events):
@@ -292,13 +357,28 @@ def make_p_node(initial_events):
         source=node.source,
         fill_color="color", line_color="black", alpha=0.8,
     )
+    node.highlight_source = ColumnDataSource(dict(left=[], right=[], top=[], bottom=[]))
+    node.figure.quad(
+        left="left", right="right", top="top", bottom="bottom",
+        source=node.highlight_source,
+        fill_color="#FF00FF", fill_alpha=0.5, line_color=None,
+    )
+    _trace_cb = CustomJS(args=dict(
+        source=node.source,
+        trace_active=trace_checkbox,
+        parent_source=_DUMMY_SOURCE,
+        child_source=_DUMMY_SOURCE,
+        parent_hl=_DUMMY_HL_SOURCE,
+        child_hl=_DUMMY_HL_SOURCE,
+    ), code=_TRACE_HOVER_JS)
     hover = HoverTool(renderers=[quad_renderer], tooltips=[
         ("Bin", "@edge_left_str to @edge_right_str"),
         ("Count", "@count{0}"),
         ("Probability before prior", "@raw_prob{0.0000}"),
         ("Probability", "@prob{0.0000}"),
         ("Density", "@density{0.0000}"),
-    ])
+    ], callback=_trace_cb)
+    node.hover_tool = hover
     node.figure.add_tools(hover)
     # Vertical lines at bin edges (full plot height)
     node.edge_line_source = ColumnDataSource(dict(x=[]))
@@ -382,11 +462,6 @@ def make_p_node(initial_events):
     node.freeze_edge_btn = Button(label="Freeze edge", width=100)
 
     # ── Derive controls ──────────────────────────────────────────────────
-    node.derive_dropdown = Select(
-        value="Surprisal",
-        options=["Pass events thru as they are", "Surprisal"],
-        width=250,
-    )
     node.derive_btn = Button(label="View derived distribution", button_type="primary", width=220)
     node.kl_div_display = Div(text="", styles={"line-height": "2.2", "margin-left": "10px", "font-size": "13px"})
 
@@ -406,11 +481,6 @@ def make_p_node(initial_events):
 
     def on_bin_edge_slider_change(attr, old, new, n=node):
         _sync_edges_and_recompute(n)
-
-    def on_output_mode_change(attr, old, new, n=node):
-        n.output_mode = "passthru" if new == "Pass events thru as they are" else "surprisal"
-        if n.child is not None:
-            recompute_from(n)
 
     def on_y_mode_change(attr, old, new, n=node):
         n.figure.yaxis.axis_label = "Probability density" if new == 1 else "Probability"
@@ -461,7 +531,6 @@ def make_p_node(initial_events):
     node.prior_alpha_slider.on_change("value", on_prior_change)
     node.prior_mu_slider.on_change("value", on_prior_change)
     node.prior_sigma_slider.on_change("value", on_prior_change)
-    node.derive_dropdown.on_change("value", on_output_mode_change)
     node.derive_btn.on_click(on_derive)
     node.gang_checkbox.on_change("active", on_propagate_change)
     node.freeze_edge_btn.on_click(on_freeze_edge)
@@ -483,7 +552,7 @@ def make_p_node(initial_events):
     # Initialize interior_edges from slider defaults (callbacks only fire on change)
     node.interior_edges = [node.split_point_slider.value]
 
-    derive_row = Row(node.derive_dropdown, node.derive_btn, node.gang_checkbox, node.kl_div_display)
+    derive_row = Row(node.derive_btn, node.gang_checkbox, node.kl_div_display)
 
     prior_row = Row(node.prior_alpha_slider, Spacer(width=20), node.prior_mu_slider, Spacer(width=20), node.prior_sigma_slider)
     plot_and_edges = Row(node.figure, Spacer(width=20), edge_panel)
@@ -498,17 +567,14 @@ def create_child_node(parent_node):
 
     # Compute the events this child will receive
     if parent_node is not None:
-        if parent_node.output_mode == "passthru":
-            child_events = parent_node.events.copy()
-        else:  # surprisal
-            edges = np.array([-np.inf] + sorted(parent_node.interior_edges) + [np.inf])
-            alpha = parent_node.prior_alpha_slider.value if parent_node.prior_alpha_slider else PRIOR_ALPHA_DEFAULT
-            mu = parent_node.prior_mu_slider.value if parent_node.prior_mu_slider else PRIOR_MU_DEFAULT
-            sigma = parent_node.prior_sigma_slider.value if parent_node.prior_sigma_slider else PRIOR_SIGMA_DEFAULT
-            probs = compute_probabilities(edges, parent_node.events, alpha=alpha, mu=mu, sigma=sigma)
-            interior = edges[1:-1]
-            bin_indices = np.searchsorted(interior, parent_node.events)
-            child_events = -np.log2(probs[bin_indices])
+        edges = np.array([-np.inf] + sorted(parent_node.interior_edges) + [np.inf])
+        alpha = parent_node.prior_alpha_slider.value if parent_node.prior_alpha_slider else PRIOR_ALPHA_DEFAULT
+        mu = parent_node.prior_mu_slider.value if parent_node.prior_mu_slider else PRIOR_MU_DEFAULT
+        sigma = parent_node.prior_sigma_slider.value if parent_node.prior_sigma_slider else PRIOR_SIGMA_DEFAULT
+        probs = compute_probabilities(edges, parent_node.events, alpha=alpha, mu=mu, sigma=sigma)
+        interior = edges[1:-1]
+        bin_indices = np.searchsorted(interior, parent_node.events)
+        child_events = -np.log2(probs[bin_indices])
     else:
         child_events = root_events.copy()
 
@@ -522,6 +588,11 @@ def create_child_node(parent_node):
             new_node.propagates = True
             new_node.gang_checkbox.active = [0]
             propagate_params_down(parent_node)
+        # Wire hover trace: parent sees child, child sees parent
+        parent_node.hover_tool.callback.args['child_source'] = new_node.source
+        parent_node.hover_tool.callback.args['child_hl'] = new_node.highlight_source
+        new_node.hover_tool.callback.args['parent_source'] = parent_node.source
+        new_node.hover_tool.callback.args['parent_hl'] = parent_node.highlight_source
     else:
         root_node = new_node
         initial_derive_btn.disabled = True
@@ -765,6 +836,8 @@ top_controls = Column(
         Div(text="<b>count:</b>", styles={"line-height": "2.2", "margin-left": "6px"}),
         single_event_count_input,
         single_event_status,
+        Spacer(width=30),
+        trace_checkbox,
         Spacer(width=30),
         Div(text="<b>Layout:</b>", styles={"line-height": "2.2"}),
         col_count_radio,
