@@ -274,64 +274,75 @@ def refresh_kl_display(node):
 
 trace_checkbox = CheckboxGroup(labels=["Trace event flow on hover"], active=[])
 
-# Placeholder sources used for nodes that have no parent/child yet
-_DUMMY_SOURCE = ColumnDataSource(dict(prob=[], left=[], right=[], top=[], left_actual=[], right_actual=[]))
-_DUMMY_HL_SOURCE = ColumnDataSource(dict(left=[], right=[], top=[], bottom=[]))
-
 _TRACE_HOVER_JS = """
 const indices = cb_data.index.indices;
 const active = trace_active.active.includes(0);
-if (!active || indices.length === 0) {
-    parent_hl.data = {left: [], right: [], top: [], bottom: []};
-    child_hl.data  = {left: [], right: [], top: [], bottom: []};
-    return;
-}
+
+// Always clear all ancestor/descendant highlights first
+for (let i = 0; i < ancestor_hls.length; i++)
+    ancestor_hls[i].data = {left: [], right: [], top: [], bottom: []};
+for (let i = 0; i < descendant_hls.length; i++)
+    descendant_hls[i].data = {left: [], right: [], top: [], bottom: []};
+
+if (!active || indices.length === 0) return;
+
 const k      = indices[0];
 const prob   = source.data['prob'];
 const left_a = source.data['left_actual'];
 const right_a = source.data['right_actual'];
-const bin_left  = left_a[k];
-const bin_right = right_a[k];
 
-// Parent bins whose surprisal (-log2 p) lands in this bin's actual range
-const pp = parent_source.data['prob'];
-if (pp && pp.length > 0) {
-    const pl = parent_source.data['left'];
-    const pr = parent_source.data['right'];
-    const pt = parent_source.data['top'];
+// Go UP: walk ancestor list; at each level find bins whose surprisal
+// falls within the ranges inherited from the level below.
+let ranges = [[left_a[k], right_a[k]]];
+for (let lvl = 0; lvl < ancestor_sources.length; lvl++) {
+    const ap  = ancestor_sources[lvl].data['prob'];
+    if (!ap || ap.length === 0) break;
+    const al  = ancestor_sources[lvl].data['left'];
+    const ar  = ancestor_sources[lvl].data['right'];
+    const ala = ancestor_sources[lvl].data['left_actual'];
+    const ara = ancestor_sources[lvl].data['right_actual'];
+    const at  = ancestor_sources[lvl].data['top'];
     const hl_l = [], hl_r = [], hl_t = [], hl_b = [];
-    for (let j = 0; j < pp.length; j++) {
-        const surp = -Math.log2(pp[j]);
-        if (surp >= bin_left && surp <= bin_right) {
-            hl_l.push(pl[j]); hl_r.push(pr[j]);
-            hl_t.push(pt[j]); hl_b.push(0);
+    const next_ranges = [];
+    for (let j = 0; j < ap.length; j++) {
+        const surp = -Math.log2(ap[j]);
+        for (const rng of ranges) {
+            if (surp >= rng[0] && surp <= rng[1]) {
+                hl_l.push(al[j]); hl_r.push(ar[j]);
+                hl_t.push(at[j]); hl_b.push(0);
+                next_ranges.push([ala[j], ara[j]]);
+                break;
+            }
         }
     }
-    parent_hl.data = {left: hl_l, right: hl_r, top: hl_t, bottom: hl_b};
-} else {
-    parent_hl.data = {left: [], right: [], top: [], bottom: []};
+    ancestor_hls[lvl].data = {left: hl_l, right: hl_r, top: hl_t, bottom: hl_b};
+    ranges = next_ranges;
+    if (ranges.length === 0) break;
 }
 
-// Child bin where this bin's surprisal lands
-const surp = -Math.log2(prob[k]);
-const cp = child_source.data['prob'];
-if (cp && cp.length > 0) {
-    const cla = child_source.data['left_actual'];
-    const cra = child_source.data['right_actual'];
-    const cl  = child_source.data['left'];
-    const cr  = child_source.data['right'];
-    const ct  = child_source.data['top'];
+// Go DOWN: follow the single surprisal value through each descendant level.
+let surp = -Math.log2(prob[k]);
+for (let lvl = 0; lvl < descendant_sources.length; lvl++) {
+    const dp  = descendant_sources[lvl].data['prob'];
+    if (!dp || dp.length === 0) break;
+    const dla = descendant_sources[lvl].data['left_actual'];
+    const dra = descendant_sources[lvl].data['right_actual'];
+    const dl  = descendant_sources[lvl].data['left'];
+    const dr  = descendant_sources[lvl].data['right'];
+    const dt  = descendant_sources[lvl].data['top'];
     const hl_l = [], hl_r = [], hl_t = [], hl_b = [];
-    for (let j = 0; j < cp.length; j++) {
-        if (surp >= cla[j] && surp < cra[j]) {
-            hl_l.push(cl[j]); hl_r.push(cr[j]);
-            hl_t.push(ct[j]); hl_b.push(0);
+    let next_surp = null;
+    for (let j = 0; j < dp.length; j++) {
+        if (surp >= dla[j] && surp < dra[j]) {
+            hl_l.push(dl[j]); hl_r.push(dr[j]);
+            hl_t.push(dt[j]); hl_b.push(0);
+            next_surp = -Math.log2(dp[j]);
             break;
         }
     }
-    child_hl.data = {left: hl_l, right: hl_r, top: hl_t, bottom: hl_b};
-} else {
-    child_hl.data = {left: [], right: [], top: [], bottom: []};
+    descendant_hls[lvl].data = {left: hl_l, right: hl_r, top: hl_t, bottom: hl_b};
+    if (next_surp === null) break;
+    surp = next_surp;
 }
 """
 
@@ -366,10 +377,10 @@ def make_p_node(initial_events):
     _trace_cb = CustomJS(args=dict(
         source=node.source,
         trace_active=trace_checkbox,
-        parent_source=_DUMMY_SOURCE,
-        child_source=_DUMMY_SOURCE,
-        parent_hl=_DUMMY_HL_SOURCE,
-        child_hl=_DUMMY_HL_SOURCE,
+        ancestor_sources=[],
+        ancestor_hls=[],
+        descendant_sources=[],
+        descendant_hls=[],
     ), code=_TRACE_HOVER_JS)
     hover = HoverTool(renderers=[quad_renderer], tooltips=[
         ("Bin", "@edge_left_str to @edge_right_str"),
@@ -561,6 +572,24 @@ def make_p_node(initial_events):
     return node
 
 
+def _rebuild_trace_args():
+    """Rebuild ancestor/descendant source lists for every node's hover callback."""
+    for node in _all_nodes:
+        ancestors, cur = [], node.parent
+        while cur is not None:
+            ancestors.append(cur)
+            cur = cur.parent
+        descendants, cur = [], node.child
+        while cur is not None:
+            descendants.append(cur)
+            cur = cur.child
+        cb = node.hover_tool.callback
+        cb.args['ancestor_sources'] = [a.source for a in ancestors]
+        cb.args['ancestor_hls']     = [a.highlight_source for a in ancestors]
+        cb.args['descendant_sources'] = [d.source for d in descendants]
+        cb.args['descendant_hls']     = [d.highlight_source for d in descendants]
+
+
 def create_child_node(parent_node):
     """Create a new PNode as a child of parent_node and append to layout."""
     global root_node
@@ -588,11 +617,6 @@ def create_child_node(parent_node):
             new_node.propagates = True
             new_node.gang_checkbox.active = [0]
             propagate_params_down(parent_node)
-        # Wire hover trace: parent sees child, child sees parent
-        parent_node.hover_tool.callback.args['child_source'] = new_node.source
-        parent_node.hover_tool.callback.args['child_hl'] = new_node.highlight_source
-        new_node.hover_tool.callback.args['parent_source'] = parent_node.source
-        new_node.hover_tool.callback.args['parent_hl'] = parent_node.highlight_source
     else:
         root_node = new_node
         initial_derive_btn.disabled = True
@@ -600,6 +624,7 @@ def create_child_node(parent_node):
     # Append to node list and rebuild grid
     _all_nodes.append(new_node)
     rebuild_grid()
+    _rebuild_trace_args()
 
     # Recompute so it shows a distribution (also refreshes KL displays for new_node and its parent)
     recompute_from(new_node)
