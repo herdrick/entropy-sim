@@ -152,6 +152,41 @@ def kl_divergence_bits(p_edges, p_probs, q_edges, q_probs):
     return float(total)
 
 
+def wasserstein_distance(p_edges, p_probs, q_edges, q_probs):
+    """W1 (Earth Mover's Distance) between two histogram distributions.
+
+    Works even when the two histograms have different bin edges. Treats each
+    histogram as a piecewise-uniform distribution; integrates |F_P - F_Q| over
+    the merged grid of breakpoints (exact for piecewise-linear CDFs).
+    """
+    def clip_edges(edges):
+        e = np.array(edges, dtype=float)
+        if np.isneginf(e[0]):  e[0]  = X_MIN
+        if np.isposinf(e[-1]): e[-1] = X_MAX
+        return e
+
+    pe = clip_edges(p_edges)
+    qe = clip_edges(q_edges)
+
+    def build_cdf(edges, probs):
+        xs = [edges[0]]
+        fs = [0.0]
+        cum = 0.0
+        for i, p in enumerate(probs):
+            cum += p
+            xs.append(edges[i + 1])
+            fs.append(cum)
+        return np.array(xs), np.array(fs)
+
+    px, pf = build_cdf(pe, p_probs)
+    qx, qf = build_cdf(qe, q_probs)
+
+    all_x = np.unique(np.concatenate([px, qx]))
+    pf_all = np.interp(all_x, px, pf)
+    qf_all = np.interp(all_x, qx, qf)
+    return float(np.trapezoid(np.abs(pf_all - qf_all), all_x))
+
+
 def bar_colors(n):
     return ["#4878CF"] * n
 
@@ -252,7 +287,7 @@ def recompute_from(node):
 
 
 def refresh_kl_display(node):
-    """Show KL(node ‖ parent) with ↑ and KL(node ‖ child) with ↓, when each exists."""
+    """Show KL and W1 to parent (↑) and child (↓), when each exists."""
     if node.kl_div_display is None or node.current_edges is None:
         return
     edges, probs = node.current_edges, node.current_probs
@@ -260,14 +295,16 @@ def refresh_kl_display(node):
     parent = node.parent
     if parent is not None and parent.current_edges is not None:
         kl_up = kl_divergence_bits(edges, probs, parent.current_edges, parent.current_probs)
-        if kl_up is not None:
-            parts.append(f"KL divergence ↑ {kl_up:.4f} bits")
+        w1_up = wasserstein_distance(edges, probs, parent.current_edges, parent.current_probs)
+        kl_str = f"{kl_up:.4f} bits" if kl_up is not None else "undefined"
+        parts.append(f"↑ KL {kl_str} &nbsp; W1 {w1_up:.4f}")
     child = node.child
     if child is not None and child.current_edges is not None:
         kl_down = kl_divergence_bits(edges, probs, child.current_edges, child.current_probs)
-        if kl_down is not None:
-            parts.append(f"KL divergence ↓ {kl_down:.4f} bits")
-    node.kl_div_display.text = " &nbsp;&nbsp; ".join(parts)
+        w1_down = wasserstein_distance(edges, probs, child.current_edges, child.current_probs)
+        kl_str = f"{kl_down:.4f} bits" if kl_down is not None else "undefined"
+        parts.append(f"↓ KL {kl_str} &nbsp; W1 {w1_down:.4f}")
+    node.kl_div_display.text = " &nbsp;&nbsp;&nbsp; ".join(parts)
 
 
 # ── Trace hover feature ──────────────────────────────────────────────────────
