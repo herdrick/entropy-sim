@@ -13,7 +13,7 @@ import events as ev
 
 # ── Constants ────────────────────────────────────────────────────────────────
 X_MIN, X_MAX = -10, 10
-PRIOR_ALPHA_DEFAULT = 1    # pseudocount scale
+PRIOR_ALPHA_DEFAULT = 0    # pseudocount scale
 PRIOR_MU_DEFAULT = 0       # prior mean
 PRIOR_SIGMA_DEFAULT = 5    # prior std dev
 TOOLS = "xpan,xwheel_zoom,xbox_zoom,reset,save"
@@ -61,7 +61,7 @@ class PNode:
     add_single_edge_btn: object = None
     freeze_edge_btn: object = None
     y_scale_toggle: object = None
-    y_range_adaptive: bool = False
+    y_range_adaptive: bool = True
     highlight_source: ColumnDataSource = None
     hover_tool: HoverTool = None
 
@@ -313,7 +313,7 @@ def refresh_kl_display(node):
 
 # ── Trace hover feature ──────────────────────────────────────────────────────
 
-trace_checkbox = CheckboxGroup(labels=["Trace event flow on hover"], active=[])
+trace_checkbox = CheckboxGroup(labels=["Trace event flow on hover"], active=[0])
 
 _TRACE_HOVER_JS = """
 const indices = cb_data.index.indices;
@@ -448,7 +448,7 @@ def make_p_node(initial_events):
     node.y_mode_radio = RadioGroup(labels=["Probability", "Probability density"], active=0, inline=True)
 
     # Y-scale select: fixed 0–1 vs adaptive
-    node.y_scale_toggle = Select(value="fixed", options=[("fixed", "Y: fixed 0–1"), ("adaptive", "Y: adaptive")], width=140)
+    node.y_scale_toggle = Select(value="adaptive", options=[("fixed", "Y: fixed 0–1"), ("adaptive", "Y: adaptive")], width=140)
 
     # Gang checkbox (hidden until node is linked to a parent)
     node.gang_checkbox = CheckboxGroup(labels=["Copy params to child node"], active=[])
