@@ -453,7 +453,7 @@ def make_p_node(initial_events):
 
     # Gaussian prior sliders
     node.prior_alpha_slider = Slider(
-        start=0, end=5, value=PRIOR_ALPHA_DEFAULT, step=0.1,
+        start=0, end=1000, value=PRIOR_ALPHA_DEFAULT, step=1,
         title="Prior strength α", width=250,
     )
     node.prior_mu_slider = Slider(
