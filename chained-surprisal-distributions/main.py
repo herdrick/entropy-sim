@@ -286,25 +286,29 @@ def recompute_from(node):
         refresh_kl_display(node.parent)
 
 
+_KL_LINK = '<a href="https://en.wikipedia.org/wiki/Kullback%E2%80%93Leibler_divergence" target="_blank">KL</a>'
+_W1_LINK = '<a href="https://en.wikipedia.org/wiki/Wasserstein_metric" target="_blank">W1</a>'
+
+
 def refresh_kl_display(node):
-    """Show KL and W1 to parent (↑) and child (↓), when each exists."""
+    """Show KL and W1 to parent (↑) and child (↓), when each exists, one row each."""
     if node.kl_div_display is None or node.current_edges is None:
         return
     edges, probs = node.current_edges, node.current_probs
-    parts = []
+    lines = []
     parent = node.parent
     if parent is not None and parent.current_edges is not None:
         kl_up = kl_divergence_bits(edges, probs, parent.current_edges, parent.current_probs)
         w1_up = wasserstein_distance(edges, probs, parent.current_edges, parent.current_probs)
         kl_str = f"{kl_up:.4f} bits" if kl_up is not None else "undefined"
-        parts.append(f"↑ KL {kl_str} &nbsp; W1 {w1_up:.4f}")
+        lines.append(f"↑ {_KL_LINK} {kl_str} &nbsp; {_W1_LINK} {w1_up:.4f}")
     child = node.child
     if child is not None and child.current_edges is not None:
         kl_down = kl_divergence_bits(edges, probs, child.current_edges, child.current_probs)
         w1_down = wasserstein_distance(edges, probs, child.current_edges, child.current_probs)
         kl_str = f"{kl_down:.4f} bits" if kl_down is not None else "undefined"
-        parts.append(f"↓ KL {kl_str} &nbsp; W1 {w1_down:.4f}")
-    node.kl_div_display.text = " &nbsp;&nbsp;&nbsp; ".join(parts)
+        lines.append(f"↓ {_KL_LINK} {kl_str} &nbsp; {_W1_LINK} {w1_down:.4f}")
+    node.kl_div_display.text = "<br>".join(lines)
 
 
 # ── Trace hover feature ──────────────────────────────────────────────────────
