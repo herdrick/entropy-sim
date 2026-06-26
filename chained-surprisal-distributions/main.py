@@ -226,7 +226,7 @@ def rebuild_grid():
 # ── Core recomputation ───────────────────────────────────────────────────────
 
 def propagate_params_down(node):
-    """Push node's params to its child. Recurses if child also propagates."""
+    """Push node's params to all descendants unconditionally."""
     child = node.child
     if child is None:
         return
@@ -237,8 +237,7 @@ def propagate_params_down(node):
     child.prior_alpha_slider.value = node.prior_alpha_slider.value
     child.prior_mu_slider.value = node.prior_mu_slider.value
     child.prior_sigma_slider.value = node.prior_sigma_slider.value
-    if child.propagates:
-        propagate_params_down(child)
+    propagate_params_down(child)
 
 
 def recompute_from(node):
@@ -450,8 +449,7 @@ def make_p_node(initial_events):
     # Y-scale select: fixed 0–1 vs adaptive
     node.y_scale_toggle = Select(value="adaptive", options=[("fixed", "Y: fixed 0–1"), ("adaptive", "Y: adaptive")], width=140)
 
-    # Gang checkbox (hidden until node is linked to a parent)
-    node.gang_checkbox = CheckboxGroup(labels=["Copy params to child node"], active=[])
+    node.gang_checkbox = CheckboxGroup(labels=["Control all descendants' parameters"], active=[])
 
     # Gaussian prior sliders
     node.prior_alpha_slider = Slider(
@@ -533,6 +531,8 @@ def make_p_node(initial_events):
 
     def on_bin_edge_slider_change(attr, old, new, n=node):
         _sync_edges_and_recompute(n)
+        if n.propagates:
+            propagate_params_down(n)
 
     def on_y_mode_change(attr, old, new, n=node):
         n.figure.yaxis.axis_label = "Probability density" if new == 1 else "Probability"
@@ -549,9 +549,13 @@ def make_p_node(initial_events):
 
     def on_prior_change(attr, old, new, n=node):
         recompute_from(n)
+        if n.propagates:
+            propagate_params_down(n)
 
     def on_propagate_change(attr, old, new, n=node):
         n.propagates = 0 in new
+        if n.propagates:
+            propagate_params_down(n)
 
     def on_freeze_edge(n=node):
         val = n.split_point_slider.value
@@ -655,8 +659,6 @@ def create_child_node(parent_node):
         new_node.parent = parent_node
         parent_node.derive_btn.disabled = True
         if parent_node.propagates:
-            new_node.propagates = True
-            new_node.gang_checkbox.active = [0]
             propagate_params_down(parent_node)
     else:
         root_node = new_node
