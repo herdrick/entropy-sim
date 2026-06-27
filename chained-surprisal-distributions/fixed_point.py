@@ -143,6 +143,8 @@ class PNode:
 
 
 node: Optional[PNode] = None
+session_record: int = 0       # highest n_iter seen this session
+session_record_rows: list = [] # list of HTML strings, one per record
 convergence_div = Div(
     text="<i>Add events to compute fixed-point iterations.</i>",
     styles={"font-size": "15px", "margin-top": "10px"},
@@ -179,11 +181,42 @@ def recompute():
     n_iter = compute_fixed_point_iterations(node.events, edges, alpha, mu, sigma)
     if n_iter is None and len(node.events) == 0:
         convergence_div.text = "<i>Add events to compute fixed-point iterations.</i>"
+        return
     elif n_iter is None:
         convergence_div.text = f"<b>Did not converge within {MAX_ITER} iterations.</b>"
+        return
+
+    s = "iteration" if n_iter == 1 else "iterations"
+    current_line = f"<b>Fixed point reached in {n_iter} {s}.</b>"
+
+    global session_record, session_record_rows
+    if n_iter > session_record:
+        session_record = n_iter
+        dist_desc = family_select.value
+        if _current_param_sliders:
+            param_str = ", ".join(f"{sl.title}={sl.value:.3g}" for sl in _current_param_sliders)
+            dist_desc += f"({param_str})"
+        n_events = len(node.events)
+        n_interior = len(node.interior_edges)
+        if n_interior > 0:
+            e_min = min(node.interior_edges)
+            e_max = max(node.interior_edges)
+            edge_desc = f"{n_interior} interior edges [{e_min:.3g}–{e_max:.3g}]"
+        else:
+            edge_desc = "no interior edges"
+        row = (f"<b>{n_iter}</b> {s} — {dist_desc} | "
+               f"n={n_events} | {edge_desc}")
+        session_record_rows.insert(0, row)
+
+    if session_record_rows:
+        records_html = "<br>".join(session_record_rows)
+        convergence_div.text = (
+            current_line
+            + "<br><br><b>Records this session:</b><br>"
+            + records_html
+        )
     else:
-        s = "iteration" if n_iter == 1 else "iterations"
-        convergence_div.text = f"<b>Fixed point reached in {n_iter} {s}.</b>"
+        convergence_div.text = current_line
 
 
 def make_node(initial_events):
