@@ -12,7 +12,7 @@ from bokeh.models import (
 import events as ev
 
 # ── Constants ────────────────────────────────────────────────────────────────
-X_MIN, X_MAX = -10, 10
+X_MIN, X_MAX = -10, 30
 PRIOR_ALPHA_DEFAULT = 0    # pseudocount scale
 PRIOR_MU_DEFAULT = 0       # prior mean
 PRIOR_SIGMA_DEFAULT = 5    # prior std dev
@@ -502,7 +502,7 @@ def make_p_node(initial_events):
         title="Evenly spaced: right", width=250,
     )
     node.equal_width_count_slider = Slider(
-        start=0, end=500, value=0, step=1,
+        start=0, end=5000, value=0, step=1,
         title="Evenly spaced: edge count", width=250,
     )
 

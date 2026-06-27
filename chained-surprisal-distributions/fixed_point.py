@@ -12,7 +12,7 @@ from bokeh.models import (
 import events as ev
 
 # ── Constants ────────────────────────────────────────────────────────────────
-X_MIN, X_MAX = -10, 10
+X_MIN, X_MAX = -10, 300
 PRIOR_ALPHA_DEFAULT = 0
 PRIOR_MU_DEFAULT = 0
 PRIOR_SIGMA_DEFAULT = 5
@@ -205,7 +205,7 @@ def recompute():
         else:
             edge_desc = "no interior edges"
         row = (f"<b>{n_iter}</b> {s} — {dist_desc} | "
-               f"n={n_events} | {edge_desc}")
+               f"events count: {n_events} | {edge_desc}")
         session_record_rows.insert(0, row)
 
     if session_record_rows:
