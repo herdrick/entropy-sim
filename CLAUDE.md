@@ -9,3 +9,6 @@ In the stderr after you make a change you'll see 'ProtocolError("Token is expire
 
 # timeouts
 Whatever you are doing, don't set a timeout on it longer than 2 seconds and if you EVER find yourself waiting on something, TELL THE USER LOUDLY about it. Something is wrong and the user wants to know about that.
+
+# subagents
+I don't have any experience using subagents, so I'm relying on you to spot opportunities to use them. Let me know if you see a good opportunity!

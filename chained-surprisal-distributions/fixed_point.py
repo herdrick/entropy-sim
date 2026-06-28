@@ -11,6 +11,13 @@ from bokeh.models import (
 )
 import events as ev
 
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+from io import BytesIO
+import base64
+
 # ── Constants ────────────────────────────────────────────────────────────────
 X_MIN, X_MAX = -10, 300
 PRIOR_ALPHA_DEFAULT = 0
@@ -96,9 +103,9 @@ def bar_colors(n):
 # ── Fixed-point iteration ─────────────────────────────────────────────────────
 
 def compute_fixed_point_iterations(events, edges, alpha, mu, sigma):
-    """Count event-based surprisal-map iterations until the distribution converges."""
+    """Return (n_iter, converged_probs) or (None, None) if no convergence."""
     if len(events) == 0:
-        return None
+        return None, None
     interior = edges[1:-1]
     current_events = events.copy()
     probs = compute_probabilities(edges, current_events, alpha, mu, sigma)
@@ -107,10 +114,10 @@ def compute_fixed_point_iterations(events, edges, alpha, mu, sigma):
         new_events = -np.log2(probs[bin_indices])
         new_probs = compute_probabilities(edges, new_events, alpha, mu, sigma)
         if np.max(np.abs(new_probs - probs)) < CONVERGENCE_TOL:
-            return i + 1
+            return i + 1, new_probs
         current_events = new_events
         probs = new_probs
-    return None  # did not converge
+    return None, None  # did not converge
 
 
 # ── Node ──────────────────────────────────────────────────────────────────────
@@ -145,6 +152,71 @@ class PNode:
 node: Optional[PNode] = None
 session_record: int = 0       # highest n_iter seen this session
 session_record_rows: list = [] # list of HTML strings, one per record
+all_simplex_fixed_points: list = []  # each entry: full converged prob vector (any length)
+
+clear_simplex_btn = Button(label="Clear points", width=110, button_type="warning")
+simplex_div = Div(width=520, height=460)
+
+
+def _project_first3_nonzero(fp):
+    """Return (xyz, labels) using the first 3 non-zero bins of fp (0-indexed)."""
+    nz = [i for i, v in enumerate(fp) if v > 1e-12][:3]
+    p = np.zeros(3)
+    for k, i in enumerate(nz):
+        p[k] = fp[i]
+    s = p.sum()
+    if s > 0:
+        p /= s
+    labels = [f'p{nz[k]+1}' if k < len(nz) else '' for k in range(3)]
+    return p, labels
+
+
+def make_simplex_html() -> str:
+    """Render 3D simplex; each stored fixed point projected onto its first 3 non-zero bins."""
+    fig = plt.figure(figsize=(5.2, 4.6), dpi=100)
+    ax = fig.add_subplot(111, projection='3d')
+
+    verts = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=float)
+    tri = Poly3DCollection([verts], alpha=0.12, facecolor='steelblue', edgecolor='none')
+    ax.add_collection3d(tri)
+    for i, j in [(0, 1), (1, 2), (2, 0)]:
+        ax.plot3D(*zip(verts[i], verts[j]), color='#444', lw=1.4, alpha=0.6)
+
+    # Axis labels from the most recent fixed point
+    labels = ['p?', 'p?', 'p?']
+    pts = []
+    for fp in all_simplex_fixed_points:
+        p, lbl = _project_first3_nonzero(fp)
+        pts.append(p)
+        labels = lbl  # last one wins
+
+    offsets = [(0.07, -0.07, -0.07), (-0.07, 0.07, -0.07), (-0.07, -0.07, 0.07)]
+    for v, label, off in zip(verts, labels, offsets):
+        if label:
+            ax.text(v[0]+off[0], v[1]+off[1], v[2]+off[2], label, fontsize=12, ha='center', va='center')
+
+    if pts:
+        arr = np.array(pts)
+        ax.scatter(arr[:, 0], arr[:, 1], arr[:, 2],
+                   c='blue', alpha=0.1, s=28, zorder=5, depthshade=True)
+
+    ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.set_zlim(0, 1)
+    ax.set_xlabel(labels[0], labelpad=4)
+    ax.set_ylabel(labels[1], labelpad=4)
+    ax.set_zlabel(labels[2], labelpad=4)
+    ax.set_xticklabels([]); ax.set_yticklabels([]); ax.set_zticklabels([])
+    ax.view_init(elev=26, azim=47)
+    ax.set_title(f'Fixed points on simplex  (n={len(pts)})', fontsize=11, pad=6)
+
+    fig.subplots_adjust(left=0.05, right=0.95, bottom=0.05, top=0.95)
+    buf = BytesIO()
+    fig.savefig(buf, format='png', bbox_inches='tight', dpi=100)
+    plt.close(fig)
+    buf.seek(0)
+    img_b64 = base64.b64encode(buf.read()).decode('utf-8')
+    return f'<img src="data:image/png;base64,{img_b64}" style="display:block;"/>'
+
+
 convergence_div = Div(
     text="<i>Add events to compute fixed-point iterations.</i>",
     styles={"font-size": "15px", "margin-top": "10px"},
@@ -178,13 +250,17 @@ def recompute():
     node.figure.title.text = f"P1  |  entropy = {entropy_bits(probs):.4f} bits"
     node.edge_line_source.data = dict(x=sorted(node.interior_edges))
 
-    n_iter = compute_fixed_point_iterations(node.events, edges, alpha, mu, sigma)
+    n_iter, fixed_probs = compute_fixed_point_iterations(node.events, edges, alpha, mu, sigma)
     if n_iter is None and len(node.events) == 0:
         convergence_div.text = "<i>Add events to compute fixed-point iterations.</i>"
         return
     elif n_iter is None:
         convergence_div.text = f"<b>Did not converge within {MAX_ITER} iterations.</b>"
         return
+
+    if fixed_probs is not None:
+        all_simplex_fixed_points.append(fixed_probs.copy())
+        simplex_div.text = make_simplex_html()
 
     s = "iteration" if n_iter == 1 else "iterations"
     current_line = f"<b>Fixed point reached in {n_iter} {s}.</b>"
@@ -521,6 +597,13 @@ def on_family_change(attr, old, new):
         do_replace()
 
 
+def on_clear_simplex():
+    global all_simplex_fixed_points
+    all_simplex_fixed_points = []
+    simplex_div.text = make_simplex_html()
+
+clear_simplex_btn.on_click(on_clear_simplex)
+
 add_events_btn.on_click(on_add_events)
 clear_events_btn.on_click(on_clear_events)
 single_event_input.on_change("value", on_single_event_input)
@@ -582,5 +665,7 @@ transport_row = Row(
     sizing_mode="stretch_width",
 )
 
-curdoc().add_root(Column(top_controls, transport_row, node.layout, convergence_div))
+simplex_section = Column(Row(clear_simplex_btn), simplex_div)
+
+curdoc().add_root(Column(top_controls, transport_row, node.layout, simplex_section, convergence_div))
 curdoc().title = "Surprisal Fixed Point"
