@@ -260,9 +260,12 @@ def _refresh_viz_panels():
         return
     indices, labels = _get_active_bins()
     update_simplex3d_panel(_simplex3d_state, all_simplex_fixed_points, indices, labels)
-    update_radial_panel(_radial_state, all_simplex_fixed_points, indices, labels)
-    update_scatter_matrix_panel(_scatter_state, all_simplex_fixed_points, indices, labels)
-    update_parallel_coords_panel(_parallel_state, all_simplex_fixed_points, indices, labels)
+    new_radial = update_radial_panel(_radial_state, all_simplex_fixed_points, indices, labels)
+    _radial_wrap.children = [new_radial]
+    new_scatter = update_scatter_matrix_panel(_scatter_state, all_simplex_fixed_points, indices, labels)
+    _scatter_wrap.children = [new_scatter]
+    new_parallel = update_parallel_coords_panel(_parallel_state, all_simplex_fixed_points, indices, labels)
+    _parallel_wrap.children = [new_parallel]
 
 
 def recompute():
@@ -839,6 +842,11 @@ _scatter_layout, _scatter_state = make_scatter_matrix_panel([], [], [])
 _parallel_layout, _parallel_state = make_parallel_coords_panel([], [], [])
 _bin_lock_layout, _locked_bins_state = make_bin_lock_ui(tracker)
 
+# Wrapper columns so _refresh_viz_panels can replace panel contents when bins change
+_radial_wrap = Column(_radial_layout)
+_scatter_wrap = Column(_scatter_layout)
+_parallel_wrap = Column(_parallel_layout)
+
 recompute()
 
 # ── Layout ────────────────────────────────────────────────────────────────────
@@ -871,8 +879,8 @@ transport_row = Row(
 simplex_section = Column(
     Row(clear_simplex_btn, Spacer(width=20), _bin_lock_layout),
     Row(_simplex3d_layout, simplex_stats_div),
-    Row(_radial_layout, _parallel_layout),
-    _scatter_layout,
+    Row(_radial_wrap, _parallel_wrap),
+    _scatter_wrap,
 )
 
 curdoc().add_root(Column(top_controls, transport_row, node.layout, surp_node.layout, simplex_section, convergence_div))
