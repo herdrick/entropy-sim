@@ -156,6 +156,7 @@ all_simplex_fixed_points: list = []  # each entry: full converged prob vector (a
 
 clear_simplex_btn = Button(label="Clear points", width=110, button_type="warning")
 simplex_div = Div(width=520, height=460)
+simplex_stats_div = Div(width=160, height=460, styles={"font-size": "13px", "padding-left": "12px"})
 
 
 def _project_first3_nonzero(fp):
@@ -217,6 +218,25 @@ def make_simplex_html() -> str:
     return f'<img src="data:image/png;base64,{img_b64}" style="display:block;"/>'
 
 
+def update_simplex_stats():
+    from collections import Counter
+    counts = Counter()
+    for fp in all_simplex_fixed_points:
+        for i in [i for i, v in enumerate(fp) if v > 1e-12][:3]:
+            counts[i] += 1
+    if not counts:
+        simplex_stats_div.text = ""
+        return
+    rows = "".join(
+        f"<tr><td>p{i+1}</td><td style='padding-left:8px;text-align:right'>{c}×</td></tr>"
+        for i, c in counts.most_common(10)
+    )
+    simplex_stats_div.text = (
+        f"<b>Top bins</b> (n={len(all_simplex_fixed_points)})"
+        f"<table style='margin-top:6px'>{rows}</table>"
+    )
+
+
 convergence_div = Div(
     text="<i>Add events to compute fixed-point iterations.</i>",
     styles={"font-size": "15px", "margin-top": "10px"},
@@ -261,6 +281,7 @@ def recompute():
     if fixed_probs is not None:
         all_simplex_fixed_points.append(fixed_probs.copy())
         simplex_div.text = make_simplex_html()
+        update_simplex_stats()
 
     s = "iteration" if n_iter == 1 else "iterations"
     current_line = f"<b>Fixed point reached in {n_iter} {s}.</b>"
@@ -601,6 +622,7 @@ def on_clear_simplex():
     global all_simplex_fixed_points
     all_simplex_fixed_points = []
     simplex_div.text = make_simplex_html()
+    update_simplex_stats()
 
 clear_simplex_btn.on_click(on_clear_simplex)
 
@@ -665,7 +687,7 @@ transport_row = Row(
     sizing_mode="stretch_width",
 )
 
-simplex_section = Column(Row(clear_simplex_btn), simplex_div)
+simplex_section = Column(Row(clear_simplex_btn), Row(simplex_div, simplex_stats_div))
 
 curdoc().add_root(Column(top_controls, transport_row, node.layout, simplex_section, convergence_div))
 curdoc().title = "Surprisal Fixed Point"
