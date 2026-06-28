@@ -102,17 +102,26 @@ def bar_colors(n):
 
 # ── Fixed-point iteration ─────────────────────────────────────────────────────
 
-def compute_fixed_point_iterations(events, edges, alpha, mu, sigma):
-    """Return (n_iter, converged_probs) or (None, None) if no convergence."""
+def compute_fixed_point_iterations(events, init_edges, surp_edges, alpha, mu, sigma):
+    """Return (n_iter, converged_probs) or (None, None) if no convergence.
+
+    init_edges: bins for the initial distribution (P1).
+    surp_edges: bins used for every surprisal distribution (S(P1), S(S(P1)), ...).
+    """
     if len(events) == 0:
         return None, None
-    interior = edges[1:-1]
-    current_events = events.copy()
-    probs = compute_probabilities(edges, current_events, alpha, mu, sigma)
+    init_interior = init_edges[1:-1]
+    surp_interior = surp_edges[1:-1]
+    # Map original events through P1 → first surprisal events
+    init_probs = compute_probabilities(init_edges, events, alpha, mu, sigma)
+    bin_idx = np.clip(np.searchsorted(init_interior, events), 0, len(init_probs) - 1)
+    current_events = -np.log2(init_probs[bin_idx])
+    # First surprisal distribution (S(P1))
+    probs = compute_probabilities(surp_edges, current_events, alpha, mu, sigma)
     for i in range(MAX_ITER):
-        bin_indices = np.clip(np.searchsorted(interior, current_events), 0, len(probs) - 1)
-        new_events = -np.log2(probs[bin_indices])
-        new_probs = compute_probabilities(edges, new_events, alpha, mu, sigma)
+        bin_idx = np.clip(np.searchsorted(surp_interior, current_events), 0, len(probs) - 1)
+        new_events = -np.log2(probs[bin_idx])
+        new_probs = compute_probabilities(surp_edges, new_events, alpha, mu, sigma)
         if np.max(np.abs(new_probs - probs)) < CONVERGENCE_TOL:
             return i + 1, new_probs
         current_events = new_events
@@ -150,6 +159,7 @@ class PNode:
 
 
 node: Optional[PNode] = None
+surp_node: Optional[PNode] = None
 session_record: int = 0       # highest n_iter seen this session
 session_record_rows: list = [] # list of HTML strings, one per record
 all_simplex_fixed_points: list = []  # each entry: full converged prob vector (any length)
@@ -157,6 +167,7 @@ all_simplex_fixed_points: list = []  # each entry: full converged prob vector (a
 clear_simplex_btn = Button(label="Clear points", width=110, button_type="warning")
 simplex_div = Div(width=520, height=460)
 simplex_stats_div = Div(width=160, height=460, styles={"font-size": "13px", "padding-left": "12px"})
+nonzero_bins_dist_div = Div(width=260, height=460)
 
 
 def _project_first3_nonzero(fp):
@@ -237,10 +248,78 @@ def update_simplex_stats():
     )
 
 
+def update_nonzero_bins_dist():
+    if not all_simplex_fixed_points:
+        nonzero_bins_dist_div.text = ""
+        return
+    counts = [int(np.sum(np.array(fp) > 1e-12)) for fp in all_simplex_fixed_points]
+    max_bins = max(len(fp) for fp in all_simplex_fixed_points)
+    domain = np.arange(1, max_bins + 1)
+    freq = np.array([counts.count(k) for k in domain])
+
+    fig, ax = plt.subplots(figsize=(2.5, 4.2), dpi=100)
+    ax.bar(domain, freq, color="#4878CF", edgecolor="black", linewidth=0.5)
+    ax.set_xlabel("Non-zero bins", fontsize=9)
+    ax.set_ylabel("Count", fontsize=9)
+    ax.set_title(f"Non-zero bins\n(n={len(counts)})", fontsize=9, pad=4)
+    ax.set_xticks(domain)
+    ax.tick_params(labelsize=8)
+    fig.tight_layout()
+
+    buf = BytesIO()
+    fig.savefig(buf, format='png', bbox_inches='tight', dpi=100)
+    plt.close(fig)
+    buf.seek(0)
+    img_b64 = base64.b64encode(buf.read()).decode('utf-8')
+    nonzero_bins_dist_div.text = f'<img src="data:image/png;base64,{img_b64}" style="display:block;"/>'
+
+
 convergence_div = Div(
     text="<i>Add events to compute fixed-point iterations.</i>",
     styles={"font-size": "15px", "margin-top": "10px"},
 )
+
+
+def _update_surp_node():
+    """Compute and display the first surprisal distribution S(P1) in surp_node."""
+    if node is None or surp_node is None:
+        return
+    edges = node.current_edges
+    probs = node.current_probs
+    if edges is None or probs is None or len(node.events) == 0:
+        empty_edges = np.array([-np.inf, np.inf])
+        surp_node.source.data = make_column_data_source_data(empty_edges, np.array([1.0]), use_density=False)
+        surp_node.current_edges = empty_edges
+        surp_node.current_probs = np.array([1.0])
+        surp_node.figure.title.text = "S(P1) — First Surprisal Distribution"
+        return
+    interior = edges[1:-1]
+    bin_idx = np.clip(np.searchsorted(interior, node.events), 0, len(probs) - 1)
+    surp_events = -np.log2(probs[bin_idx])
+    surp_node.events = surp_events
+    s_edges = np.array([-np.inf] + sorted(surp_node.interior_edges) + [np.inf])
+    alpha = node.prior_alpha_slider.value
+    mu    = node.prior_mu_slider.value
+    sigma = node.prior_sigma_slider.value
+    s_counts = bin_counts(s_edges, surp_events)
+    s_probs  = compute_probabilities(s_edges, surp_events, alpha, mu, sigma)
+    surp_node.current_edges = s_edges
+    surp_node.current_probs = s_probs
+    use_density = surp_node.y_mode_radio.active == 1
+    cds = make_column_data_source_data(
+        s_edges, s_probs, counts=s_counts,
+        x_start=surp_node.figure.x_range.start,
+        x_end=surp_node.figure.x_range.end,
+        use_density=use_density,
+    )
+    surp_node.source.data = cds
+    if surp_node.y_range_adaptive:
+        max_top = float(np.max(cds['top'])) if len(cds['top']) > 0 else 1.0
+        surp_node.figure.y_range.end = max_top * 1.05
+    else:
+        surp_node.figure.y_range.end = 1.0
+    surp_node.figure.title.text = f"S(P1)  |  entropy = {entropy_bits(s_probs):.4f} bits"
+    surp_node.edge_line_source.data = dict(x=sorted(surp_node.interior_edges))
 
 
 def recompute():
@@ -270,7 +349,10 @@ def recompute():
     node.figure.title.text = f"P1  |  entropy = {entropy_bits(probs):.4f} bits"
     node.edge_line_source.data = dict(x=sorted(node.interior_edges))
 
-    n_iter, fixed_probs = compute_fixed_point_iterations(node.events, edges, alpha, mu, sigma)
+    _update_surp_node()
+    surp_edges = (np.array([-np.inf] + sorted(surp_node.interior_edges) + [np.inf])
+                  if surp_node is not None else edges)
+    n_iter, fixed_probs = compute_fixed_point_iterations(node.events, edges, surp_edges, alpha, mu, sigma)
     if n_iter is None and len(node.events) == 0:
         convergence_div.text = "<i>Add events to compute fixed-point iterations.</i>"
         return
@@ -282,6 +364,7 @@ def recompute():
         all_simplex_fixed_points.append(fixed_probs.copy())
         simplex_div.text = make_simplex_html()
         update_simplex_stats()
+        update_nonzero_bins_dist()
 
     s = "iteration" if n_iter == 1 else "iterations"
     current_line = f"<b>Fixed point reached in {n_iter} {s}.</b>"
@@ -473,6 +556,151 @@ def make_node(initial_events):
     return n
 
 
+def make_surp_node():
+    global surp_node
+    n = PNode()
+    n.events = np.array([], dtype=float)
+
+    edges0 = np.array([-np.inf, np.inf])
+    probs0 = np.array([1.0])
+    n.source = ColumnDataSource(make_column_data_source_data(edges0, probs0, use_density=False))
+
+    n.figure = figure(
+        width=PLOT_WIDTH, height=380,
+        x_range=(0, 50),
+        y_range=Range1d(0, 1),
+        tools=TOOLS, toolbar_location="right",
+        title="S(P1) — First Surprisal Distribution",
+    )
+    quad_renderer = n.figure.quad(
+        left="left", right="right", top="top", bottom=0,
+        source=n.source,
+        fill_color="color", line_color="black", alpha=0.8,
+    )
+    hover = HoverTool(renderers=[quad_renderer], tooltips=[
+        ("Bin",    "@edge_left_str to @edge_right_str"),
+        ("Count",  "@count{0}"),
+        ("Probability before prior", "@raw_prob{0.0000}"),
+        ("Probability", "@prob{0.0000}"),
+        ("Density",     "@density{0.0000}"),
+    ])
+    n.figure.add_tools(hover)
+    n.edge_line_source = ColumnDataSource(dict(x=[]))
+    n.figure.ray(x="x", y=0, length=0, angle=np.pi/2,
+                 source=n.edge_line_source,
+                 line_color="black", line_alpha=0.08, line_width=1)
+    n.figure.xgrid.grid_line_color = None
+    n.figure.ygrid.grid_line_color = None
+    n.figure.xaxis.axis_label = "Surprisal (bits)"
+    n.figure.yaxis.axis_label = "Probability"
+
+    n.y_mode_radio   = RadioGroup(labels=["Probability", "Probability density"], active=0, inline=True)
+    n.y_scale_toggle = Select(value="adaptive",
+                              options=[("fixed", "Y: fixed 0–1"), ("adaptive", "Y: adaptive")],
+                              width=140)
+
+    _range_cb = CustomJS(
+        args=dict(source=n.source, x_range=n.figure.x_range, y_mode=n.y_mode_radio),
+        code="""
+        const data  = source.data;
+        const li    = data['left_inf'];
+        const ri    = data['right_inf'];
+        const prob  = data['prob'];
+        const left  = data['left'].slice();
+        const right = data['right'].slice();
+        const xstart = x_range.start, xend = x_range.end;
+        for (let i = 0; i < left.length; i++) {
+            if (li[i]) left[i]  = xstart;
+            if (ri[i]) right[i] = xend;
+        }
+        const center  = left.map((l, i) => (l + right[i]) / 2);
+        const width   = left.map((l, i) => right[i] - l);
+        const density = prob.map((p, i) => width[i] > 0 ? p / width[i] : 0);
+        const top = y_mode.active === 1 ? density : prob.slice();
+        source.data = {...data, left, right, center, width, density, top};
+    """)
+    n.figure.x_range.js_on_change('start', _range_cb)
+    n.figure.x_range.js_on_change('end',   _range_cb)
+
+    n.split_point_slider       = Slider(start=X_MIN, end=X_MAX, value=5.0,  step=0.1, title="Split point",              width=250)
+    n.equal_width_left_slider  = Slider(start=X_MIN, end=X_MAX, value=0.0,  step=0.1, title="Evenly spaced: left",      width=250)
+    n.equal_width_right_slider = Slider(start=X_MIN, end=X_MAX, value=20.0, step=0.1, title="Evenly spaced: right",     width=250)
+    n.equal_width_count_slider = Slider(start=0,     end=5000,  value=0,    step=1,   title="Evenly spaced: edge count", width=250)
+
+    n.add_single_edge_input = TextInput(placeholder="Value…", width=120)
+    n.add_single_edge_btn   = Button(label="Add",         width=55)
+    n.freeze_edge_btn       = Button(label="Freeze edge", width=100)
+
+    def _sync_and_recompute(nd=n):
+        edges = {nd.split_point_slider.value} | set(nd.single_edges)
+        count = int(nd.equal_width_count_slider.value)
+        left  = nd.equal_width_left_slider.value
+        right = nd.equal_width_right_slider.value
+        if count > 0 and right > left:
+            step = (right - left) / (count + 1)
+            for i in range(count):
+                edges.add(left + step * (i + 1))
+        nd.interior_edges = sorted(edges)
+        recompute()
+
+    def on_bin_edge_slider_change(attr, old, new): _sync_and_recompute()
+
+    def on_y_mode_change(attr, old, new, nd=n):
+        nd.figure.yaxis.axis_label = "Probability density" if new == 1 else "Probability"
+        data = nd.source.data
+        nd.source.data = {**data, 'top': data['density'] if new == 1 else data['prob']}
+
+    def on_y_scale_toggle(attr, old, new, nd=n):
+        nd.y_range_adaptive = (new == "adaptive")
+        recompute()
+
+    def on_freeze_edge(nd=n):
+        val = nd.split_point_slider.value
+        if val not in nd.single_edges:
+            nd.single_edges.append(val)
+        _sync_and_recompute()
+
+    def on_add_single_edge(nd=n):
+        val_str = nd.add_single_edge_input.value.strip()
+        if not val_str:
+            return
+        try:
+            val = float(val_str)
+        except ValueError:
+            return
+        if val not in nd.single_edges:
+            nd.single_edges.append(val)
+        nd.add_single_edge_input.value = ""
+        _sync_and_recompute()
+
+    for _s in (n.split_point_slider, n.equal_width_left_slider,
+               n.equal_width_right_slider, n.equal_width_count_slider):
+        _s.on_change("value", on_bin_edge_slider_change)
+    n.y_mode_radio.on_change("active", on_y_mode_change)
+    n.freeze_edge_btn.on_click(on_freeze_edge)
+    n.add_single_edge_btn.on_click(on_add_single_edge)
+    n.y_scale_toggle.on_change("value", on_y_scale_toggle)
+
+    n.interior_edges = [n.split_point_slider.value]
+
+    edge_panel = Column(
+        Row(n.add_single_edge_input, Spacer(width=5), n.add_single_edge_btn),
+        Spacer(height=4),
+        Row(n.split_point_slider, Spacer(width=8), n.freeze_edge_btn),
+        Spacer(height=10),
+        n.equal_width_left_slider,
+        n.equal_width_right_slider,
+        n.equal_width_count_slider,
+    )
+    n.edge_panel = edge_panel
+    n.layout = Column(
+        Row(n.figure, Spacer(width=20), edge_panel),
+        Row(n.y_mode_radio, Spacer(width=20), n.y_scale_toggle),
+    )
+    surp_node = n
+    return n
+
+
 # ── Top-level event controls (same as main.py) ────────────────────────────────
 
 n_events_input       = TextInput(value="1000", title="", width=80)
@@ -623,6 +851,7 @@ def on_clear_simplex():
     all_simplex_fixed_points = []
     simplex_div.text = make_simplex_html()
     update_simplex_stats()
+    update_nonzero_bins_dist()
 
 clear_simplex_btn.on_click(on_clear_simplex)
 
@@ -658,6 +887,7 @@ history_fwd_btn.on_click( lambda: apply_history_index(history_index + 1))
 # ── Initialize ────────────────────────────────────────────────────────────────
 
 make_node(root_events.copy())
+make_surp_node()
 recompute()
 
 # ── Layout ────────────────────────────────────────────────────────────────────
@@ -687,7 +917,7 @@ transport_row = Row(
     sizing_mode="stretch_width",
 )
 
-simplex_section = Column(Row(clear_simplex_btn), Row(simplex_div, simplex_stats_div))
+simplex_section = Column(Row(clear_simplex_btn), Row(simplex_div, simplex_stats_div, nonzero_bins_dist_div))
 
-curdoc().add_root(Column(top_controls, transport_row, node.layout, simplex_section, convergence_div))
+curdoc().add_root(Column(top_controls, transport_row, node.layout, surp_node.layout, simplex_section, convergence_div))
 curdoc().title = "Surprisal Fixed Point"
