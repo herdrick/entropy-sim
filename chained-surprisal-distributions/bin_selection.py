@@ -107,9 +107,15 @@ def make_bin_lock_ui(tracker):
 
     _update_status_unlocked()
 
+    def refresh_status():
+        """Call after new fixed points are recorded to keep status current."""
+        if not locked_bins_state['locked']:
+            _update_status_unlocked()
+
     layout = Column(
         Row(toggle_btn, Spacer(width=10), min_freq_slider),
         status_div,
     )
 
+    locked_bins_state['_refresh_status'] = refresh_status
     return layout, locked_bins_state

@@ -258,6 +258,8 @@ def _refresh_viz_panels():
     """Update all 4 viz panels with current data."""
     if _simplex3d_state is None:
         return
+    if _locked_bins_state and '_refresh_status' in _locked_bins_state:
+        _locked_bins_state['_refresh_status']()
     indices, labels = _get_active_bins()
     update_simplex3d_panel(_simplex3d_state, all_simplex_fixed_points, indices, labels)
     new_radial = update_radial_panel(_radial_state, all_simplex_fixed_points, indices, labels)
