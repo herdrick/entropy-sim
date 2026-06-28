@@ -62,6 +62,7 @@ class PNode:
     freeze_edge_btn: object = None
     y_scale_toggle: object = None
     y_range_adaptive: bool = True
+    sync_edges_and_recompute: object = None
     highlight_source: ColumnDataSource = None
     hover_tool: HoverTool = None
 
@@ -230,6 +231,7 @@ def propagate_params_down(node):
     child = node.child
     if child is None:
         return
+    child.single_edges = list(node.single_edges)
     child.split_point_slider.value = node.split_point_slider.value
     child.equal_width_left_slider.value = node.equal_width_left_slider.value
     child.equal_width_right_slider.value = node.equal_width_right_slider.value
@@ -237,6 +239,8 @@ def propagate_params_down(node):
     child.prior_alpha_slider.value = node.prior_alpha_slider.value
     child.prior_mu_slider.value = node.prior_mu_slider.value
     child.prior_sigma_slider.value = node.prior_sigma_slider.value
+    if child.sync_edges_and_recompute is not None:
+        child.sync_edges_and_recompute()
     propagate_params_down(child)
 
 
@@ -563,6 +567,8 @@ def make_p_node(initial_events):
             n.single_edges.append(val)
         _sync_edges_and_recompute(n)
 
+    node.sync_edges_and_recompute = _sync_edges_and_recompute
+
     def on_add_single_edge(n=node):
         val_str = n.add_single_edge_input.value.strip()
         if not val_str:
@@ -575,6 +581,8 @@ def make_p_node(initial_events):
             n.single_edges.append(val)
         n.add_single_edge_input.value = ""
         _sync_edges_and_recompute(n)
+        if n.propagates:
+            propagate_params_down(n)
 
     def on_derive(n=node):
         create_child_node(n)
