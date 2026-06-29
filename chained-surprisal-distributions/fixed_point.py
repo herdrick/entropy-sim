@@ -575,10 +575,10 @@ def make_surp_node():
     n.figure.x_range.js_on_change('start', _range_cb)
     n.figure.x_range.js_on_change('end',   _range_cb)
 
-    n.split_point_slider       = Slider(start=X_MIN, end=X_MAX, value=5.0,  step=0.1, title="Split point",              width=250)
-    n.equal_width_left_slider  = Slider(start=X_MIN, end=X_MAX, value=0.0,  step=0.1, title="Evenly spaced: left",      width=250)
-    n.equal_width_right_slider = Slider(start=X_MIN, end=X_MAX, value=20.0, step=0.1, title="Evenly spaced: right",     width=250)
-    n.equal_width_count_slider = Slider(start=0,     end=5000,  value=0,    step=1,   title="Evenly spaced: edge count", width=250)
+    n.split_point_slider       = Slider(start=0, end=20, value=5.0,  step=0.1, title="Split point",              width=250)
+    n.equal_width_left_slider  = Slider(start=0, end=20, value=0.0,  step=0.1, title="Evenly spaced: left",      width=250)
+    n.equal_width_right_slider = Slider(start=0, end=20, value=10.0, step=0.1, title="Evenly spaced: right",     width=250)
+    n.equal_width_count_slider = Slider(start=0, end=1000, value=0,  step=1,   title="Evenly spaced: edge count", width=250)
 
     n.add_single_edge_input = TextInput(placeholder="Value…", width=120)
     n.add_single_edge_btn   = Button(label="Add",         width=55)

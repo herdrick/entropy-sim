@@ -393,7 +393,7 @@ for (let lvl = 0; lvl < descendant_sources.length; lvl++) {
 
 # ── PNode factory ────────────────────────────────────────────────────────────
 
-def make_p_node(initial_events):
+def make_p_node(initial_events, is_surprisal=False):
     node = PNode()
     node.events = initial_events
 
@@ -403,7 +403,7 @@ def make_p_node(initial_events):
 
     node.figure = figure(
         width=PLOT_WIDTH, height=380,
-        x_range=(X_MIN, X_MAX),
+        x_range=(0, 20) if is_surprisal else (X_MIN, X_MAX),
         y_range=Range1d(0, 1),
         tools=TOOLS, toolbar_location="right",
         title="P  |  Entropy = 0.0000 bits",
@@ -494,20 +494,23 @@ def make_p_node(initial_events):
     node.figure.x_range.js_on_change('end',   _range_cb)
 
     # ── Bin edge controls ────────────────────────────────────────────────
+    _s_min  = 0    if is_surprisal else X_MIN
+    _s_max  = 20   if is_surprisal else X_MAX
+    _c_max  = 1000 if is_surprisal else 5000
     node.split_point_slider = Slider(
-        start=X_MIN, end=X_MAX, value=0.0, step=0.1,
+        start=_s_min, end=_s_max, value=0.0 if not is_surprisal else 5.0, step=0.1,
         title="Split point", width=250,
     )
     node.equal_width_left_slider = Slider(
-        start=X_MIN, end=X_MAX, value=-3.0, step=0.1,
+        start=_s_min, end=_s_max, value=-3.0 if not is_surprisal else 0.0, step=0.1,
         title="Evenly spaced: left", width=250,
     )
     node.equal_width_right_slider = Slider(
-        start=X_MIN, end=X_MAX, value=3.0, step=0.1,
+        start=_s_min, end=_s_max, value=3.0 if not is_surprisal else 10.0, step=0.1,
         title="Evenly spaced: right", width=250,
     )
     node.equal_width_count_slider = Slider(
-        start=0, end=5000, value=0, step=1,
+        start=0, end=_c_max, value=0, step=1,
         title="Evenly spaced: edge count", width=250,
     )
 
@@ -661,7 +664,7 @@ def create_child_node(parent_node):
     else:
         child_events = root_events.copy()
 
-    new_node = make_p_node(child_events)
+    new_node = make_p_node(child_events, is_surprisal=parent_node is not None)
 
     if parent_node is not None:
         parent_node.child = new_node
