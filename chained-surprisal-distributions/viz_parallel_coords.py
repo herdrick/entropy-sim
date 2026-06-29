@@ -62,7 +62,7 @@ def make_parallel_coords_panel(fixed_points, bin_indices, bin_labels):
     fig.xaxis.major_label_overrides = {i: bin_labels[i] for i in range(n)}
     fig.yaxis.axis_label = "Probability (0-1)"
 
-    slider = Slider(start=0.0, end=1.0, value=0.4, step=0.01, title="Transparency")
+    slider = Slider(start=0.0, end=1.0, value=0.4, step=0.01, title="Opacity")
 
     def _on_alpha_change(attr, old, new):
         renderer.glyph.line_alpha = new
@@ -86,7 +86,11 @@ def make_parallel_coords_panel(fixed_points, bin_indices, bin_labels):
 def update_parallel_coords_panel(state, fixed_points, bin_indices, bin_labels):
     """Updates in-place when possible. Returns layout."""
     if list(bin_indices) != list(state.get('bin_indices', [])):
+        prev_alpha = state['alpha_slider'].value if state.get('alpha_slider') else None
         layout, new_state = make_parallel_coords_panel(fixed_points, bin_indices, bin_labels)
+        if prev_alpha is not None and new_state.get('alpha_slider'):
+            new_state['alpha_slider'].value = prev_alpha
+            new_state['multi_line_glyph'].glyph.line_alpha = prev_alpha
         state.clear()
         state.update(new_state)
         return layout

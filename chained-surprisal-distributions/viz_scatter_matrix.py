@@ -100,7 +100,7 @@ def _build(fixed_points, bin_indices, bin_labels):
 
     gp = gridplot(grid, merge_tools=False)
 
-    alpha_slider = Slider(start=0.0, end=1.0, value=0.3, step=0.01, title="Transparency", width=200)
+    alpha_slider = Slider(start=0.0, end=1.0, value=0.3, step=0.01, title="Opacity", width=200)
 
     def _on_alpha(attr, old, new):
         for r in scatter_renderers:
@@ -140,7 +140,13 @@ def update_scatter_matrix_panel(state, fixed_points, bin_indices, bin_labels):
     capped_indices = list(bin_indices[:n])
 
     if capped_indices != list(state.get('bin_indices', [])):
+        prev_alpha = state['alpha_slider'].value if state.get('alpha_slider') else None
         layout, new_state = _build(fixed_points, bin_indices, bin_labels)
+        if prev_alpha is not None:
+            new_state['alpha_slider'].value = prev_alpha
+            for r in new_state['scatter_renderers']:
+                r.glyph.fill_alpha = prev_alpha
+                r.glyph.line_alpha = prev_alpha
         state.clear()
         state.update(new_state)
         return layout

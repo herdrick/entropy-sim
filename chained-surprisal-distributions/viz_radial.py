@@ -121,7 +121,7 @@ def make_radial_panel(fixed_points, bin_indices, bin_labels):
     )
 
     alpha_slider = Slider(
-        start=0.0, end=1.0, value=alpha_default, step=0.05, title="Transparency"
+        start=0.0, end=1.0, value=alpha_default, step=0.05, title="Opacity"
     )
 
     def _on_alpha(attr, old, new):
@@ -162,7 +162,11 @@ def update_radial_panel(state, fixed_points, bin_indices, bin_labels):
         return state['layout']
 
     # rebuild from scratch
+    prev_alpha = state['alpha_slider'].value if state.get('alpha_slider') else None
     layout, new_state = make_radial_panel(fixed_points, bin_indices, bin_labels)
+    if prev_alpha is not None and new_state.get('alpha_slider'):
+        new_state['alpha_slider'].value = prev_alpha
+        new_state['multi_line_glyph'].glyph.line_alpha = prev_alpha
     state.clear()
     state.update(new_state)
     return layout

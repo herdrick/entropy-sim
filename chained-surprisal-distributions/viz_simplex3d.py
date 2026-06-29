@@ -101,7 +101,7 @@ def make_simplex3d_panel(fixed_points, bin_indices, bin_labels):
 
     elev_slider  = Slider(start=-90, end=90,  value=26,  step=1,    title="Elevation",     width=200)
     azim_slider  = Slider(start=0,   end=360, value=47,  step=1,    title="Azimuth",       width=200)
-    alpha_slider = Slider(start=0.0, end=1.0, value=0.1, step=0.01, title="Transparency",  width=200)
+    alpha_slider = Slider(start=0.0, end=1.0, value=0.1, step=0.01, title="Opacity",  width=200)
 
     bin_a_select = Select(title="Vertex A", value=_default(0), options=full_opts, width=170)
     bin_b_select = Select(title="Vertex B", value=_default(1), options=full_opts, width=170)
