@@ -32,6 +32,7 @@ root_events = np.array([], dtype=float)
 all_events: np.ndarray = np.array([], dtype=float)
 history_index: int = 0
 _transport_cb_guard: bool = False
+_step_cb_handle: list = [None]  # holds add_next_tick_callback handle during step-through animation
 
 
 # ── Helpers (same as main.py) ─────────────────────────────────────────────────
@@ -660,8 +661,9 @@ family_select        = Select(value=ev.FAMILY_NAMES[0], options=ev.FAMILY_NAMES,
 append_replace_radio = RadioButtonGroup(labels=["Append", "Replace"], active=0)
 _current_param_sliders: list = []
 dist_params_row      = Row()
-add_events_btn       = Button(label="Add events",   button_type="success", width=120)
-clear_events_btn     = Button(label="Clear events", button_type="warning", width=120, disabled=True)
+add_events_btn            = Button(label="Add events",             button_type="success", width=120)
+add_events_one_by_one_btn = Button(label="Add events (one by one)", button_type="success", width=190)
+clear_events_btn          = Button(label="Clear events",           button_type="warning", width=120, disabled=True)
 single_event_input        = TextInput(placeholder="Add event at value…", width=200)
 single_event_count_input  = TextInput(value="1", width=60, title="")
 single_event_status       = Div(text="", width=200, styles={"color": "red", "font-size": "13px", "line-height": "2.2"})
@@ -838,6 +840,49 @@ history_slider.on_change("value", on_history_slider_change)
 history_back_btn.on_click(lambda: apply_history_index(history_index - 1))
 history_fwd_btn.on_click( lambda: apply_history_index(history_index + 1))
 
+
+def on_add_events_one_by_one():
+    global all_events
+
+    if _step_cb_handle[0] is not None:
+        try:
+            curdoc().remove_next_tick_callback(_step_cb_handle[0])
+        except Exception:
+            pass
+        _step_cb_handle[0] = None
+        add_events_one_by_one_btn.label = "Add events (one by one)"
+        return
+
+    try:
+        n = int(n_events_input.value)
+        if n <= 0:
+            raise ValueError
+    except ValueError:
+        n = 1000
+        n_events_input.value = "1000"
+
+    new_ev = ev.get_events(n, family_select.value, get_current_params())
+    all_events = np.concatenate([all_events, new_ev])
+    target_index = len(all_events)
+
+    add_events_one_by_one_btn.label = "Stop"
+
+    def step():
+        if _step_cb_handle[0] is None:
+            add_events_one_by_one_btn.label = "Add events (one by one)"
+            return
+        apply_history_index(history_index + 1)
+        if history_index >= target_index:
+            _step_cb_handle[0] = None
+            add_events_one_by_one_btn.label = "Add events (one by one)"
+        else:
+            _step_cb_handle[0] = curdoc().add_next_tick_callback(step)
+
+    _step_cb_handle[0] = curdoc().add_next_tick_callback(step)
+
+
+add_events_one_by_one_btn.on_click(on_add_events_one_by_one)
+
 # ── Initialize ────────────────────────────────────────────────────────────────
 
 make_node(root_events.copy())
@@ -916,7 +961,8 @@ top_controls = Column(
     Row(
         family_select, Spacer(width=10), dist_params_row, Spacer(width=20),
         append_replace_radio, Spacer(width=20),
-        add_events_btn,
+        add_events_btn, Spacer(width=10),
+        add_events_one_by_one_btn,
         Div(text="<b>n =</b>", styles={"line-height": "2.2", "margin-left": "6px"}),
         n_events_input, Spacer(width=20),
         clear_events_btn,
