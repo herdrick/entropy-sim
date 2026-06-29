@@ -11,7 +11,7 @@ from bokeh.models import ColumnDataSource, Div, Slider, Select, Row, Column, Spa
 _NO_BIN = "__none__"
 
 
-def _render_simplex(fixed_points, bin_a, bin_b, bin_c, elev=26, azim=47):
+def _render_simplex(fixed_points, bin_a, bin_b, bin_c, elev=26, azim=47, point_alpha=0.1):
     """Render 3D simplex PNG; returns HTML img tag string."""
     fig = plt.figure(figsize=(5.2, 4.6), dpi=100)
     ax = fig.add_subplot(111, projection='3d')
@@ -47,7 +47,7 @@ def _render_simplex(fixed_points, bin_a, bin_b, bin_c, elev=26, azim=47):
     if pts:
         arr = np.array(pts)
         ax.scatter(arr[:, 0], arr[:, 1], arr[:, 2],
-                   c='blue', alpha=0.1, s=28, zorder=5, depthshade=True)
+                   c='blue', alpha=point_alpha, s=28, zorder=5, depthshade=True)
 
     ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.set_zlim(0, 1)
     ax.set_xlabel(labels[0], labelpad=4)
@@ -99,8 +99,9 @@ def make_simplex3d_panel(fixed_points, bin_indices, bin_labels):
     def _default(k):
         return opts[k][0] if k < len(opts) else _NO_BIN
 
-    elev_slider = Slider(start=-90, end=90,  value=26, step=1, title="Elevation", width=200)
-    azim_slider = Slider(start=0,   end=360, value=47, step=1, title="Azimuth",   width=200)
+    elev_slider  = Slider(start=-90, end=90,  value=26,  step=1,    title="Elevation",     width=200)
+    azim_slider  = Slider(start=0,   end=360, value=47,  step=1,    title="Azimuth",       width=200)
+    alpha_slider = Slider(start=0.0, end=1.0, value=0.1, step=0.01, title="Transparency",  width=200)
 
     bin_a_select = Select(title="Vertex A", value=_default(0), options=full_opts, width=170)
     bin_b_select = Select(title="Vertex B", value=_default(1), options=full_opts, width=170)
@@ -113,6 +114,7 @@ def make_simplex3d_panel(fixed_points, bin_indices, bin_labels):
         'figure': simplex_div,
         'elev_slider': elev_slider,
         'azim_slider': azim_slider,
+        'alpha_slider': alpha_slider,
         'bin_a_select': bin_a_select,
         'bin_b_select': bin_b_select,
         'bin_c_select': bin_c_select,
@@ -128,12 +130,14 @@ def make_simplex3d_panel(fixed_points, bin_indices, bin_labels):
             _parse_idx(bin_c_select.value),
             elev=int(elev_slider.value),
             azim=int(azim_slider.value),
+            point_alpha=float(alpha_slider.value),
         )
 
     state['_rerender'] = _rerender
 
     elev_slider.on_change('value',    lambda a, o, n: _rerender())
     azim_slider.on_change('value',    lambda a, o, n: _rerender())
+    alpha_slider.on_change('value',   lambda a, o, n: _rerender())
     bin_a_select.on_change('value',   lambda a, o, n: _rerender())
     bin_b_select.on_change('value',   lambda a, o, n: _rerender())
     bin_c_select.on_change('value',   lambda a, o, n: _rerender())
@@ -142,7 +146,7 @@ def make_simplex3d_panel(fixed_points, bin_indices, bin_labels):
 
     layout = Column(
         Row(bin_a_select, Spacer(width=8), bin_b_select, Spacer(width=8), bin_c_select),
-        Row(elev_slider, Spacer(width=20), azim_slider),
+        Row(elev_slider, Spacer(width=20), azim_slider, Spacer(width=20), alpha_slider),
         simplex_div,
     )
     state['layout'] = layout

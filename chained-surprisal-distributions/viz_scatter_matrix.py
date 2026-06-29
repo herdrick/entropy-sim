@@ -1,5 +1,5 @@
 import numpy as np
-from bokeh.models import ColumnDataSource, Div, Column
+from bokeh.models import ColumnDataSource, Div, Column, Slider, Row
 from bokeh.plotting import figure
 from bokeh.layouts import gridplot, column
 
@@ -53,6 +53,7 @@ def _build(fixed_points, bin_indices, bin_labels):
     row_y_ranges = [None] * n
 
     diag_sources = []
+    scatter_renderers = []
     grid = []
 
     for i in range(n):
@@ -79,9 +80,10 @@ def _build(fixed_points, bin_indices, bin_labels):
                          source=diag_source, fill_color=SCATTER_COLOR,
                          line_color="black", alpha=0.6)
             else:
-                fig.scatter(x='b{}'.format(j), y='b{}'.format(i),
-                            source=shared_source, alpha=0.3, size=5,
-                            color=SCATTER_COLOR)
+                r = fig.scatter(x='b{}'.format(j), y='b{}'.format(i),
+                                source=shared_source, alpha=0.3, size=5,
+                                color=SCATTER_COLOR)
+                scatter_renderers.append(r)
 
             if i == n - 1:
                 fig.xaxis.axis_label = bin_labels[j]
@@ -97,11 +99,23 @@ def _build(fixed_points, bin_indices, bin_labels):
         grid.append(row_figs)
 
     gp = gridplot(grid, merge_tools=False)
-    layout = column(gp)
+
+    alpha_slider = Slider(start=0.0, end=1.0, value=0.3, step=0.01, title="Transparency", width=200)
+
+    def _on_alpha(attr, old, new):
+        for r in scatter_renderers:
+            r.glyph.fill_alpha = new
+            r.glyph.line_alpha = new
+
+    alpha_slider.on_change('value', _on_alpha)
+
+    layout = column(Row(alpha_slider), gp)
 
     state = {
         'source': shared_source,
         'figure': gp,
+        'alpha_slider': alpha_slider,
+        'scatter_renderers': scatter_renderers,
         'layout': layout,
         'bin_indices': bin_indices,
         'bin_labels': bin_labels,

@@ -121,7 +121,7 @@ def make_radial_panel(fixed_points, bin_indices, bin_labels):
     )
 
     alpha_slider = Slider(
-        start=0.0, end=1.0, value=alpha_default, step=0.05, title="Line alpha"
+        start=0.0, end=1.0, value=alpha_default, step=0.05, title="Transparency"
     )
 
     def _on_alpha(attr, old, new):
