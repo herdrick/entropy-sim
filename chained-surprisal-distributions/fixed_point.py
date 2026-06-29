@@ -162,6 +162,9 @@ surp_node: Optional[PNode] = None
 session_record: int = 0       # highest n_iter seen this session
 session_record_rows: list = [] # list of HTML strings, one per record
 all_simplex_fixed_points: list = []  # each entry: full converged prob vector (any length)
+_fp_barchart_figures: dict = {}  # tuple(edges) -> {'source', 'fig', 'n', 'y_max'}
+_FP_BAR_ALPHA = 0.15
+_FP_BAR_COLOR = "#2266AA"
 
 clear_simplex_btn = Button(label="Clear points", width=110, button_type="warning")
 simplex_stats_div = Div(width=160, height=460, styles={"font-size": "13px", "padding-left": "12px"})
@@ -313,6 +316,7 @@ def recompute():
         tracker.record(fixed_probs)
         update_simplex_stats()
         _refresh_viz_panels()
+        _add_to_fp_barchart(surp_edges, fixed_probs)
 
     s = "iteration" if n_iter == 1 else "iterations"
     current_line = f"<b>Fixed point reached in {n_iter} {s}.</b>"
@@ -797,6 +801,8 @@ def on_family_change(attr, old, new):
 def on_clear_simplex():
     global all_simplex_fixed_points
     all_simplex_fixed_points = []
+    _fp_barchart_figures.clear()
+    _fp_barchart_wrap.children = []
     tracker.reset()
     update_simplex_stats()
     _refresh_viz_panels()
@@ -849,6 +855,59 @@ _radial_wrap = Column(_radial_layout)
 _scatter_wrap = Column(_scatter_layout)
 _parallel_wrap = Column(_parallel_layout)
 
+_fp_barchart_wrap = Column()  # populated as fixed points accumulate
+
+
+def _add_to_fp_barchart(edges, probs):
+    """Add one fixed-point distribution to the overlay bar chart for its binning group."""
+    key = tuple(float(e) for e in edges)
+    x_start, x_end = 0.0, 50.0
+
+    lefts = np.where(np.isneginf(edges[:-1]), x_start, edges[:-1])
+    rights = np.where(np.isposinf(edges[1:]), x_end, edges[1:])
+    bottom = np.zeros(len(probs))
+
+    new_data = dict(left=lefts, right=rights, top=probs, bottom=bottom)
+    y_max = float(np.max(probs)) if len(probs) > 0 else 1.0
+
+    if key not in _fp_barchart_figures:
+        source = ColumnDataSource(new_data)
+        interior = edges[1:-1]
+        if len(interior) == 0:
+            edge_desc = "no interior edges"
+        else:
+            edge_desc = f"{len(interior)} interior edge{'s' if len(interior) != 1 else ''}: " + \
+                        ", ".join(f"{e:.4g}" for e in interior)
+        n_bins = len(probs)
+        fig = figure(
+            width=PLOT_WIDTH, height=280,
+            x_range=(x_start, x_end),
+            y_range=Range1d(0, y_max * 1.1 or 1.0),
+            tools=TOOLS, toolbar_location="right",
+            title=f"Fixed-point overlays — 1 point, {n_bins} bins ({edge_desc})",
+        )
+        fig.quad(left="left", right="right", top="top", bottom="bottom",
+                 source=source,
+                 fill_color=_FP_BAR_COLOR, line_color=None,
+                 fill_alpha=_FP_BAR_ALPHA)
+        fig.xgrid.grid_line_color = None
+        fig.ygrid.grid_line_color = None
+        fig.xaxis.axis_label = "Surprisal (bits)"
+        fig.yaxis.axis_label = "Probability"
+        _fp_barchart_figures[key] = {'source': source, 'fig': fig, 'n': 1, 'y_max': y_max}
+        _fp_barchart_wrap.children = [state['fig'] for state in _fp_barchart_figures.values()]
+    else:
+        state = _fp_barchart_figures[key]
+        state['n'] += 1
+        state['y_max'] = max(state['y_max'], y_max)
+        old = state['source'].data
+        state['source'].data = {k: np.concatenate([old[k], new_data[k]]) for k in new_data}
+        n_bins = len(probs)
+        state['fig'].title.text = (
+            f"Fixed-point overlays — {state['n']} points, {n_bins} bins"
+        )
+        state['fig'].y_range.end = state['y_max'] * 1.1
+
 recompute()
 
 # ── Layout ────────────────────────────────────────────────────────────────────
@@ -885,5 +944,5 @@ simplex_section = Column(
     _scatter_wrap,
 )
 
-curdoc().add_root(Column(top_controls, transport_row, node.layout, surp_node.layout, simplex_section, convergence_div))
+curdoc().add_root(Column(top_controls, transport_row, node.layout, surp_node.layout, convergence_div, _fp_barchart_wrap, simplex_section))
 curdoc().title = "Surprisal Fixed Point"
