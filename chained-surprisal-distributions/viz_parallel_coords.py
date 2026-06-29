@@ -62,7 +62,7 @@ def make_parallel_coords_panel(fixed_points, bin_indices, bin_labels):
     fig.xaxis.major_label_overrides = {i: bin_labels[i] for i in range(n)}
     fig.yaxis.axis_label = "Probability (0-1)"
 
-    slider = Slider(start=0.0, end=1.0, value=0.4, step=0.01, title="Line alpha")
+    slider = Slider(start=0.0, end=1.0, value=0.4, step=0.01, title="Transparency")
 
     def _on_alpha_change(attr, old, new):
         renderer.glyph.line_alpha = new
