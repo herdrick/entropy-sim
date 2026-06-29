@@ -155,8 +155,7 @@ def update_simplex3d_panel(state, fixed_points, bin_indices, bin_labels):
 
     opts = _build_options(fixed_points)
     none_opt = [(_NO_BIN, "(none)")]
-    full_opts = none_opt + opts
-    valid_vals = {v for v, _ in full_opts}
+    opt_vals = {v for v, _ in opts}
 
     selects = [state['bin_a_select'], state['bin_b_select'], state['bin_c_select']]
 
@@ -166,10 +165,21 @@ def update_simplex3d_panel(state, fixed_points, bin_indices, bin_labels):
             if k < len(opts):
                 sel.value = opts[k][0]
 
+    # Preserve currently-selected bins even if they have no data right now
+    # (e.g. after Clear points). Add them back with a "(no data)" label so
+    # Bokeh doesn't auto-reset the select value.
+    extra = []
+    for sel in selects:
+        v = sel.value
+        if v != _NO_BIN and v not in opt_vals:
+            try:
+                extra.append((v, f"p{int(v)+1} | (no data)"))
+            except (ValueError, TypeError):
+                pass
+
+    full_opts = none_opt + opts + extra
     for sel in selects:
         sel.options = full_opts
-        if sel.value not in valid_vals:
-            sel.value = _NO_BIN
 
     state['_rerender']()
     return state['layout']
