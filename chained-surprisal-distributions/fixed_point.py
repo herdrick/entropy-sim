@@ -575,10 +575,10 @@ def make_surp_node():
     n.figure.x_range.js_on_change('start', _range_cb)
     n.figure.x_range.js_on_change('end',   _range_cb)
 
-    n.split_point_slider       = Slider(start=0, end=20, value=5.0,  step=0.1, title="Split point",              width=250)
-    n.equal_width_left_slider  = Slider(start=0, end=20, value=0.0,  step=0.1, title="Evenly spaced: left",      width=250)
-    n.equal_width_right_slider = Slider(start=0, end=20, value=10.0, step=0.1, title="Evenly spaced: right",     width=250)
-    n.equal_width_count_slider = Slider(start=0, end=1000, value=0,  step=1,   title="Evenly spaced: edge count", width=250)
+    n.split_point_slider       = Slider(start=X_MIN, end=X_MAX, value=5.0,  step=0.1, title="Split point",              width=250)
+    n.equal_width_left_slider  = Slider(start=X_MIN, end=X_MAX, value=0.0,  step=0.1, title="Evenly spaced: left",      width=250)
+    n.equal_width_right_slider = Slider(start=X_MIN, end=X_MAX, value=20.0, step=0.1, title="Evenly spaced: right",     width=250)
+    n.equal_width_count_slider = Slider(start=0,     end=5000,  value=0,    step=1,   title="Evenly spaced: edge count", width=250)
 
     n.add_single_edge_input = TextInput(placeholder="Value…", width=120)
     n.add_single_edge_btn   = Button(label="Add",         width=55)
@@ -804,6 +804,7 @@ def on_clear_simplex():
     global all_simplex_fixed_points
     all_simplex_fixed_points = []
     _fp_barchart_figures.clear()
+    _fp_barchart_renderers.clear()
     _fp_barchart_wrap.children = []
     tracker.reset()
     update_simplex_stats()
@@ -901,18 +902,28 @@ _scatter_wrap = Column(_scatter_layout)
 _parallel_wrap = Column(_parallel_layout)
 
 _fp_barchart_wrap = Column()  # populated as fixed points accumulate
+_fp_barchart_renderers: list = []
+
+_fp_bar_alpha_slider = Slider(start=0.0, end=1.0, value=_FP_BAR_ALPHA, step=0.01, title="Opacity", width=200)
+
+
+def _on_fp_bar_alpha(attr, old, new):
+    for r in _fp_barchart_renderers:
+        r.glyph.fill_alpha = new
+
+_fp_bar_alpha_slider.on_change('value', _on_fp_bar_alpha)
 
 
 def _add_to_fp_barchart(edges, probs):
     """Add one fixed-point distribution to the overlay bar chart for its binning group."""
     key = tuple(float(e) for e in edges)
-    x_start, x_end = 0.0, 50.0
+    x_start, x_end = 0.0, 20.0
 
     lefts = np.where(np.isneginf(edges[:-1]), x_start, edges[:-1])
     rights = np.where(np.isposinf(edges[1:]), x_end, edges[1:])
-    bottom = np.zeros(len(probs))
+    centers = (lefts + rights) / 2.0
 
-    new_data = dict(left=lefts, right=rights, top=probs, bottom=bottom)
+    new_data = dict(x=centers, y=probs)
     y_max = float(np.max(probs)) if len(probs) > 0 else 1.0
 
     if key not in _fp_barchart_figures:
@@ -931,10 +942,10 @@ def _add_to_fp_barchart(edges, probs):
             tools=TOOLS, toolbar_location="right",
             title=f"Fixed-point overlays — 1 point, {n_bins} bins ({edge_desc})",
         )
-        fig.quad(left="left", right="right", top="top", bottom="bottom",
-                 source=source,
-                 fill_color=_FP_BAR_COLOR, line_color=None,
-                 fill_alpha=_FP_BAR_ALPHA)
+        renderer = fig.scatter(x="x", y="y", source=source, size=4,
+                                fill_color=_FP_BAR_COLOR, line_color=None,
+                                fill_alpha=_fp_bar_alpha_slider.value)
+        _fp_barchart_renderers.append(renderer)
         fig.xgrid.grid_line_color = None
         fig.ygrid.grid_line_color = None
         fig.xaxis.axis_label = "Surprisal (bits)"
@@ -990,5 +1001,5 @@ simplex_section = Column(
     _scatter_wrap,
 )
 
-curdoc().add_root(Column(top_controls, transport_row, node.layout, surp_node.layout, convergence_div, _fp_barchart_wrap, simplex_section))
+curdoc().add_root(Column(top_controls, transport_row, node.layout, surp_node.layout, convergence_div, _fp_bar_alpha_slider, _fp_barchart_wrap, simplex_section))
 curdoc().title = "Surprisal Fixed Point"
