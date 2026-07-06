@@ -1,14 +1,5 @@
-# CLAUDE.md
-
-# trying out the code
-Normally the user already has the chained-surprisal-distributions/ app running at http://localhost:5006/ which serves up chained-surprisal-distributions/main.py.  Note the user started this with `cd chained-surprisal-distributions/ && conda activate bokeh-1 && find . | grep \.py$ | entr -r bokeh serve main.py fixed_point.py continuous_main.py continuous_fixed_point.py >> chained-surprisal-distributions.stdout.txt 2>> chained-surprisal-distributions.stderr.txt` so any logging should immediately be reflected in those two files, both of which are in entropy-sim/chained-surprisal-distributions/.  BTW "entr" just watches those .py files and restarts bokeh as needed.
-
-After editing main.py, entr reliably restarts the server immediately. Do not check server logs to confirm the restart, do not grep for new PIDs, do not use browser_wait_for — just navigate with Playwright and test. If the page doesn't look right, the cause is never a loading delay — investigate why the content isn't there.
-
-In the stderr after you make a change you'll see 'ProtocolError("Token is expired. Configure the app with a larger value for --session-token-expiration if necessary")'  Those are from stale browser tabs trying to reconnect to it. Ignore.
-
-# timeouts
-Whatever you are doing, don't set a timeout on it longer than 2 seconds and if you EVER find yourself waiting on something, TELL THE USER LOUDLY about it. Something is wrong and the user wants to know about that.
-
-# agents
-Before spawning agents that will edit files, run 'git push' to make sure their worktrees branch from the current state.
+# how to try out code changes
+- Normally the user has the chained-surprisal-distributions/ app running at http://localhost:5006/
+  - The user started this with `cd chained-surprisal-distributions/ && conda activate bokeh-1 && find . | grep \.py$ | entr -r bokeh serve main.py fixed_point.py continuous_main.py continuous_fixed_point.py >> chained-surprisal-distributions.stdout.txt 2>> chained-surprisal-distributions.stderr.txt` so any logging should immediately be reflected in those two files, both of which are in entropy-sim/chained-surprisal-distributions/.
+    - If you edit any of those files, entr reliably restarts the server immediately. Do not check server logs to confirm the restart, do not grep for new PIDs, do not use browser_wait_for — just navigate with Playwright and test. If the page doesn't look right, the cause is never a loading delay — investigate why the content isn't there.
+    - Any change will throw in the stderr this: 'ProtocolError("Token is expired. Configure the app with a larger value for --session-token-expiration if necessary")'  Those are from now-stale browser tabs trying to reconnect. Ignore.
