@@ -62,34 +62,36 @@ TRACE_PALETTE = ["#E24A33", "#348ABD", "#988ED5", "#777777", "#FBC15E", "#8EBA42
 # so to actually *see* "Working…" while a slow recomputation runs, the work
 # has to be deferred to the next tick: show the indicator now, run the real
 # callback body on the next tick, then clear it.
-busy_div = Div(text="", styles={
-    "color": "#b45309", "font-weight": "bold", "font-size": "13px",
-    "line-height": "2.2", "margin-left": "10px",
+busy_div = Div(text="⏳ Working…", visible=False, styles={
+    "position": "fixed", "top": "12px", "left": "50%", "transform": "translateX(-50%)",
+    "z-index": "9999", "background": "#fff7ed", "border": "1px solid #b45309",
+    "border-radius": "6px", "padding": "6px 16px", "box-shadow": "0 2px 8px rgba(0,0,0,0.15)",
+    "color": "#b45309", "font-weight": "bold", "font-size": "14px",
 })
 
 
 def busy(fn):
     def wrapped():
-        busy_div.text = "⏳ Working…"
+        busy_div.visible = True
 
         def run():
             try:
                 fn()
             finally:
-                busy_div.text = ""
+                busy_div.visible = False
         curdoc().add_next_tick_callback(run)
     return wrapped
 
 
 def busy_change(fn):
     def wrapped(attr, old, new):
-        busy_div.text = "⏳ Working…"
+        busy_div.visible = True
 
         def run():
             try:
                 fn(attr, old, new)
             finally:
-                busy_div.text = ""
+                busy_div.visible = False
         curdoc().add_next_tick_callback(run)
     return wrapped
 
@@ -186,7 +188,7 @@ def rebuild_grid():
         nd.layout.children[3] = Row(
             nd.derive_btn, nd.gang_checkbox, nd.kl_div_display,
         )
-    base = root_col.children[:4]
+    base = root_col.children[:5]
     node_rows = []
     for i in range(0, len(_all_nodes), n):
         chunk = _all_nodes[i:i + n]
@@ -704,7 +706,6 @@ top_controls = Column(
         Spacer(width=20),
         trace_checkbox,
         clear_traces_btn,
-        busy_div,
     ),
     Row(
         single_event_input,
@@ -729,6 +730,7 @@ transport_row = Row(
 )
 
 root_col = Column(
+    busy_div,
     top_controls,
     transport_row,
     trace_summary_div,
