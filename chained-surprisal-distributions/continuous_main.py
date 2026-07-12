@@ -406,6 +406,8 @@ def create_child_node(parent_node):
         parent_node.child = new_node
         new_node.parent = parent_node
         parent_node.derive_btn.disabled = True
+        new_node.propagates = parent_node.propagates
+        new_node.gang_checkbox.active = list(parent_node.gang_checkbox.active)
         if parent_node.propagates:
             propagate_params_down(parent_node)
     else:
