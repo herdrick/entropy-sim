@@ -57,6 +57,42 @@ _trace_indices: list = []
 
 TRACE_PALETTE = ["#E24A33", "#348ABD", "#988ED5", "#777777", "#FBC15E", "#8EBA42", "#FFB5B8"]
 
+# ── Busy indicator ───────────────────────────────────────────────────────────
+# Bokeh only pushes document changes to the browser after a callback returns,
+# so to actually *see* "Working…" while a slow recomputation runs, the work
+# has to be deferred to the next tick: show the indicator now, run the real
+# callback body on the next tick, then clear it.
+busy_div = Div(text="", styles={
+    "color": "#b45309", "font-weight": "bold", "font-size": "13px",
+    "line-height": "2.2", "margin-left": "10px",
+})
+
+
+def busy(fn):
+    def wrapped():
+        busy_div.text = "⏳ Working…"
+
+        def run():
+            try:
+                fn()
+            finally:
+                busy_div.text = ""
+        curdoc().add_next_tick_callback(run)
+    return wrapped
+
+
+def busy_change(fn):
+    def wrapped(attr, old, new):
+        busy_div.text = "⏳ Working…"
+
+        def run():
+            try:
+                fn(attr, old, new)
+            finally:
+                busy_div.text = ""
+        curdoc().add_next_tick_callback(run)
+    return wrapped
+
 
 @dataclass
 class PNode:
@@ -337,7 +373,7 @@ def make_p_node(initial_events, depth):
         s.on_change("value", on_param_change)
     nd.y_scale_toggle.on_change("value", on_y_scale_toggle)
     nd.gang_checkbox.on_change("active", on_propagate_change)
-    nd.derive_btn.on_click(on_derive)
+    nd.derive_btn.on_click(busy(on_derive))
 
     prior_row = Row(nd.prior_alpha_slider, Spacer(width=20), nd.prior_mu_slider, Spacer(width=20),
                      nd.prior_sigma_slider, Spacer(width=20), nd.bandwidth_slider)
@@ -573,10 +609,10 @@ def on_initial_derive():
     create_child_node(None)
 
 
-add_events_btn.on_click(on_add_events)
-clear_events_btn.on_click(on_clear_events)
-single_event_input.on_change("value", on_single_event_input)
-initial_derive_btn.on_click(on_initial_derive)
+add_events_btn.on_click(busy(on_add_events))
+clear_events_btn.on_click(busy(on_clear_events))
+single_event_input.on_change("value", busy_change(on_single_event_input))
+initial_derive_btn.on_click(busy(on_initial_derive))
 family_select.on_change("value", on_family_change)
 
 _current_param_sliders = make_param_sliders(ev.FAMILY_NAMES[0])
@@ -599,9 +635,9 @@ def on_history_slider_change(attr, old, new):
     apply_history_index(int(new))
 
 
-history_slider.on_change("value", on_history_slider_change)
-history_back_btn.on_click(lambda: apply_history_index(history_index - 1))
-history_fwd_btn.on_click(lambda: apply_history_index(history_index + 1))
+history_slider.on_change("value", busy_change(on_history_slider_change))
+history_back_btn.on_click(busy(lambda: apply_history_index(history_index - 1)))
+history_fwd_btn.on_click(busy(lambda: apply_history_index(history_index + 1)))
 
 
 def on_add_events_one_by_one():
@@ -646,7 +682,7 @@ def on_add_events_one_by_one():
     _step_cb_handle[0] = curdoc().add_next_tick_callback(step)
 
 
-add_events_one_by_one_btn.on_click(on_add_events_one_by_one)
+add_events_one_by_one_btn.on_click(busy(on_add_events_one_by_one))
 
 # ── Layout ────────────────────────────────────────────────────────────────────
 
@@ -668,6 +704,7 @@ top_controls = Column(
         Spacer(width=20),
         trace_checkbox,
         clear_traces_btn,
+        busy_div,
     ),
     Row(
         single_event_input,
