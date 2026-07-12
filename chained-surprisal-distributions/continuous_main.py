@@ -26,7 +26,7 @@ from typing import Optional, Callable
 from bokeh.plotting import figure, curdoc
 from bokeh.models import (
     ColumnDataSource, Div, TextInput, Button, Row, Column, Spacer, Select,
-    CheckboxGroup, RadioButtonGroup, Slider, HoverTool, Range1d,
+    CheckboxGroup, RadioButtonGroup, Slider, HoverTool, Range1d, Span,
 )
 import events as ev
 
@@ -53,6 +53,9 @@ _transport_cb_guard: bool = False
 _column_count: int = 1
 _all_nodes: list = []
 _step_cb_handle: list = [None]
+_trace_indices: list = []
+
+TRACE_PALETTE = ["#E24A33", "#348ABD", "#988ED5", "#777777", "#FBC15E", "#8EBA42", "#FFB5B8"]
 
 
 @dataclass
@@ -76,6 +79,8 @@ class PNode:
     propagates: bool = False
     gang_checkbox: CheckboxGroup = None
     y_range_adaptive: bool = True
+    trace_source: ColumnDataSource = None
+    trace_spans: list = field(default_factory=list)
 
 
 # ── Density helpers ────────────────────────────────────────────────────────
@@ -145,7 +150,7 @@ def rebuild_grid():
         nd.layout.children[3] = Row(
             nd.derive_btn, nd.gang_checkbox, nd.kl_div_display,
         )
-    base = root_col.children[:3]
+    base = root_col.children[:4]
     node_rows = []
     for i in range(0, len(_all_nodes), n):
         chunk = _all_nodes[i:i + n]
@@ -218,6 +223,48 @@ def refresh_kl_display(nd):
     nd.kl_div_display.text = "<br>".join(lines)
 
 
+def refresh_trace_display():
+    """Mark the currently-traced event indices on every existing node's curve
+    (a vertical dashed line + point at that node's value for the event) and
+    summarize the per-node chain of values in trace_summary_div."""
+    for nd in _all_nodes:
+        for sp in nd.trace_spans:
+            try:
+                nd.figure.center.remove(sp)
+            except ValueError:
+                pass
+        nd.trace_spans = []
+        xs, ys, colors = [], [], []
+        for i, idx in enumerate(_trace_indices):
+            if idx >= len(nd.events) or nd.current_density is None:
+                continue
+            color = TRACE_PALETTE[i % len(TRACE_PALETTE)]
+            x_val = float(nd.events[idx])
+            y_val = float(nd.current_density(np.array([x_val]))[0])
+            xs.append(x_val)
+            ys.append(y_val)
+            colors.append(color)
+            span = Span(location=x_val, dimension="height", line_color=color,
+                        line_dash="dashed", line_width=2)
+            nd.figure.add_layout(span)
+            nd.trace_spans.append(span)
+        nd.trace_source.data = dict(x=xs, y=ys, color=colors)
+
+    lines = []
+    for i, idx in enumerate(_trace_indices):
+        color = TRACE_PALETTE[i % len(TRACE_PALETTE)]
+        chain = []
+        for nd in _all_nodes:
+            if idx >= len(nd.events):
+                break
+            label = "P1" if nd.depth == 0 else f"P{nd.depth + 1}"
+            unit = "" if nd.depth == 0 else " bits"
+            chain.append(f"{label}={nd.events[idx]:.3f}{unit}")
+        if chain:
+            lines.append(f'<span style="color:{color}">●</span> ' + " &rarr; ".join(chain))
+    trace_summary_div.text = "<br>".join(lines)
+
+
 # ── PNode factory ────────────────────────────────────────────────────────────
 
 def make_p_node(initial_events, depth):
@@ -244,6 +291,9 @@ def make_p_node(initial_events, depth):
         ("density", "@y{0.0000}"),
     ])
     nd.figure.add_tools(hover)
+    nd.trace_source = ColumnDataSource(data=dict(x=[], y=[], color=[]))
+    nd.figure.scatter(x="x", y="y", source=nd.trace_source, color="color", size=9,
+                       line_color="black", line_width=1, level="overlay")
     nd.figure.xgrid.grid_line_color = None
     nd.figure.ygrid.grid_line_color = None
     nd.figure.xaxis.axis_label = x_label
@@ -269,6 +319,7 @@ def make_p_node(initial_events, depth):
         recompute_from(n)
         if n.propagates:
             propagate_params_down(n)
+        refresh_trace_display()
 
     def on_y_scale_toggle(attr, old, new, n=nd):
         n.y_range_adaptive = (new == "adaptive")
@@ -326,11 +377,12 @@ def create_child_node(parent_node):
     _all_nodes.append(new_node)
     rebuild_grid()
     recompute_from(new_node)
+    refresh_trace_display()
 
 
 # ── Top-level event controls (same as main.py) ────────────────────────────────
 
-n_events_input = TextInput(value="1000", title="", width=80)
+n_events_input = TextInput(value="100", title="", width=80)
 family_select = Select(value=ev.FAMILY_NAMES[0], options=ev.FAMILY_NAMES, width=150)
 append_replace_radio = RadioButtonGroup(labels=["Append", "Replace"], active=0)
 _current_param_sliders: list = []
@@ -341,6 +393,28 @@ clear_events_btn = Button(label="Clear events", button_type="warning", width=120
 single_event_input = TextInput(placeholder="Add event at value…", width=200)
 single_event_count_input = TextInput(value="1", width=60, title="")
 single_event_status = Div(text="", width=200, styles={"color": "red", "font-size": "13px", "line-height": "2.2"})
+trace_checkbox = CheckboxGroup(labels=["Trace new events"], active=[])
+clear_traces_btn = Button(label="Clear traces", button_type="default", width=110)
+trace_summary_div = Div(text="", styles={"font-size": "13px", "line-height": "1.8"})
+
+
+def set_trace_new_indices(n):
+    """Add the last n events in root_events to the traced set, if tracing is on.
+    Traces accumulate across add-actions and are only ever cleared via the
+    explicit Clear traces button."""
+    global _trace_indices
+    if 0 in trace_checkbox.active and n > 0:
+        start = max(0, len(root_events) - n)
+        _trace_indices = _trace_indices + list(range(start, len(root_events)))
+
+
+def on_clear_traces():
+    global _trace_indices
+    _trace_indices = []
+    refresh_trace_display()
+
+
+clear_traces_btn.on_click(on_clear_traces)
 
 initial_derive_btn = Button(label="View derived distribution", button_type="primary", width=220)
 
@@ -385,14 +459,15 @@ def on_add_events():
         if n <= 0:
             raise ValueError
     except ValueError:
-        n = 1000
-        n_events_input.value = "1000"
+        n = 100
+        n_events_input.value = "100"
     was_at_end = history_index == len(all_events)
     new_ev = ev.get_events(n, family_select.value, get_current_params())
     all_events = np.concatenate([all_events, new_ev])
     if was_at_end:
         history_index = len(all_events)
     root_events = all_events[:history_index].copy()
+    set_trace_new_indices(n)
     update_transport_state()
     on_make_dist()
 
@@ -402,6 +477,7 @@ def on_make_dist():
         return
     root_node.events = root_events.copy()
     recompute_from(root_node)
+    refresh_trace_display()
 
 
 def on_clear_events():
@@ -440,6 +516,7 @@ def on_single_event_input(attr, old, new):
     root_events = all_events[:history_index].copy()
     single_event_status.text = f"Added {n} event{'s' if n > 1 else ''} at {val}."
     single_event_input.value = ""
+    set_trace_new_indices(n)
     update_transport_state()
     on_make_dist()
 
@@ -467,11 +544,12 @@ def do_replace():
         if n <= 0:
             raise ValueError
     except ValueError:
-        n = 1000
+        n = 100
     new_ev = ev.get_events(n, family_select.value, get_current_params())
     all_events = new_ev.copy()
     history_index = len(all_events)
     root_events = all_events.copy()
+    set_trace_new_indices(n)
     update_transport_state()
     on_make_dist()
 
@@ -543,8 +621,8 @@ def on_add_events_one_by_one():
         if n <= 0:
             raise ValueError
     except ValueError:
-        n = 1000
-        n_events_input.value = "1000"
+        n = 100
+        n_events_input.value = "100"
 
     new_ev = ev.get_events(n, family_select.value, get_current_params())
     all_events = np.concatenate([all_events, new_ev])
@@ -557,6 +635,8 @@ def on_add_events_one_by_one():
             add_events_one_by_one_btn.label = "Add events (one by one)"
             return
         apply_history_index(history_index + 1)
+        set_trace_new_indices(1)
+        refresh_trace_display()
         if history_index >= target_index:
             _step_cb_handle[0] = None
             add_events_one_by_one_btn.label = "Add events (one by one)"
@@ -585,6 +665,9 @@ top_controls = Column(
         n_events_input,
         Spacer(width=20),
         clear_events_btn,
+        Spacer(width=20),
+        trace_checkbox,
+        clear_traces_btn,
     ),
     Row(
         single_event_input,
@@ -611,6 +694,7 @@ transport_row = Row(
 root_col = Column(
     top_controls,
     transport_row,
+    trace_summary_div,
     initial_derive_btn,
 )
 
