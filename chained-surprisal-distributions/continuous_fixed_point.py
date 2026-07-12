@@ -35,8 +35,7 @@ BANDWIDTH_DEFAULT = 1.0
 TOOLS = "xpan,xwheel_zoom,xbox_zoom,reset,save"
 PLOT_WIDTH = 900
 MAX_ITER = 1000
-CONVERGENCE_GRID_N = 120
-CONVERGENCE_TOL = 1e-4
+WASSERSTEIN_TOL = 1e-10
 
 VALUE_GRID = np.linspace(X_MIN, X_MAX, GRID_N)
 SURP_GRID = np.linspace(S_MIN, S_MAX, GRID_N)
@@ -82,30 +81,66 @@ def differential_entropy_bits(density_fn, grid):
     return float(np.trapezoid(-p * np.log2(p), grid))
 
 
+def kl_divergence_bits(p_fn, q_fn, grid):
+    p = np.clip(p_fn(grid), 1e-300, None)
+    q = np.clip(q_fn(grid), 1e-300, None)
+    integrand = np.where(p > 1e-12, p * np.log2(p / q), 0.0)
+    return float(np.trapezoid(integrand, grid))
+
+
+def wasserstein_distance(p_fn, q_fn, grid):
+    p = np.clip(p_fn(grid), 0, None)
+    q = np.clip(q_fn(grid), 0, None)
+    p_mass = np.trapezoid(p, grid)
+    q_mass = np.trapezoid(q, grid)
+    if p_mass <= 0 or q_mass <= 0:
+        return float("nan")
+    p = p / p_mass
+    q = q / q_mass
+    dx = np.diff(grid)
+    F_p = np.concatenate([[0.0], np.cumsum((p[1:] + p[:-1]) / 2 * dx)])
+    F_q = np.concatenate([[0.0], np.cumsum((q[1:] + q[:-1]) / 2 * dx)])
+    return float(np.trapezoid(np.abs(F_p - F_q), grid))
+
+
 def compute_fixed_point_iterations(events, alpha, mu, sigma, bw_factor):
-    """Return (n_iter, final_density_fn) or (None, None) if no convergence.
+    """Return (n_iter, final_density_fn, history) or (None, None, None) if no
+    convergence.
 
     Mirrors fixed_point.py's iteration: map events -> S(P1) samples, then
     repeatedly re-transform through the current density and refit, until
-    the density stops changing (checked on a coarse grid for speed).
+    the distribution stops moving: the Wasserstein (W1) distance between
+    P_i and P_i+1 drops below WASSERSTEIN_TOL. W1 is used (rather than a
+    raw pointwise density comparison) because it accounts for how much
+    probability mass actually shifted, not just the worst-case height
+    difference at any single point.
+
+    `history` is a list of (kl_forward, kl_backward, w1) tuples, one per
+    iteration, measuring the divergence between that iteration's density
+    (P_i) and the next (P_i+1): forward is KL(P_i‖P_i+1), backward is
+    KL(P_i+1‖P_i) -- the two differ because KL is asymmetric, while W1 is a
+    true metric and has only one value per step.
     """
     if len(events) == 0:
-        return None, None
-    conv_grid = np.linspace(S_MIN, S_MAX, CONVERGENCE_GRID_N)
+        return None, None, None
     p1_density = make_density_fn(events, alpha, mu, sigma, bw_factor)
     current_events = surprisal_bits(events, p1_density)
     density = make_density_fn(current_events, alpha, mu, sigma, bw_factor)
-    prev_vals = density(conv_grid)
+    history = []
     for i in range(MAX_ITER):
         new_events = surprisal_bits(current_events, density)
         new_density = make_density_fn(new_events, alpha, mu, sigma, bw_factor)
-        new_vals = new_density(conv_grid)
-        if np.max(np.abs(new_vals - prev_vals)) < CONVERGENCE_TOL:
-            return i + 1, new_density
+        w1 = wasserstein_distance(density, new_density, SURP_GRID)
+        history.append((
+            kl_divergence_bits(density, new_density, SURP_GRID),
+            kl_divergence_bits(new_density, density, SURP_GRID),
+            w1,
+        ))
+        if w1 < WASSERSTEIN_TOL:
+            return i + 1, new_density, history
         current_events = new_events
         density = new_density
-        prev_vals = new_vals
-    return None, None
+    return None, None, None
 
 
 # ── Node ──────────────────────────────────────────────────────────────────────
@@ -172,6 +207,89 @@ def on_clear_overlays():
 
 clear_overlays_btn.on_click(on_clear_overlays)
 
+_progression_source_log = ColumnDataSource(data=dict(iter=[], kl_fwd=[], kl_bwd=[], w1=[]))
+_progression_source_linear = ColumnDataSource(data=dict(iter=[], kl_fwd=[], kl_bwd=[], w1=[]))
+
+
+def _make_progression_figure(source, log_scale):
+    kwargs = dict(
+        width=PLOT_WIDTH, height=280,
+        tools=TOOLS, toolbar_location="right",
+        title="Convergence progression (last run)",
+    )
+    if log_scale:
+        kwargs["y_axis_type"] = "log"
+    else:
+        kwargs["y_range"] = Range1d(0, 1)
+    fig = figure(**kwargs)
+    fig.line(x="iter", y="kl_fwd", source=source,
+             line_color="#2266AA", line_width=2, legend_label="KL forward  (Pᵢ‖Pᵢ₊₁)")
+    fig.circle(x="iter", y="kl_fwd", source=source, color="#2266AA", size=4)
+    fig.line(x="iter", y="kl_bwd", source=source,
+             line_color="#CC6633", line_width=2, legend_label="KL backward (Pᵢ₊₁‖Pᵢ)")
+    fig.circle(x="iter", y="kl_bwd", source=source, color="#CC6633", size=4)
+    fig.line(x="iter", y="w1", source=source,
+             line_color="#339933", line_width=2, legend_label="W1")
+    fig.circle(x="iter", y="w1", source=source, color="#339933", size=4)
+    fig.xgrid.grid_line_color = None
+    fig.xaxis.axis_label = "Iteration"
+    fig.yaxis.axis_label = "Divergence (log scale)" if log_scale else "Divergence"
+    fig.legend.click_policy = "hide"
+    fig.add_layout(fig.legend[0], "right")
+    return fig
+
+
+_progression_figure_log = _make_progression_figure(_progression_source_log, log_scale=True)
+_progression_figure_linear = _make_progression_figure(_progression_source_linear, log_scale=False)
+_progression_container = Column(_progression_figure_log)
+
+progression_y_scale_select = Select(
+    value="log", options=[("log", "Y: log scale"), ("linear", "Y: linear scale")], width=150,
+)
+
+
+def on_progression_y_scale_change(attr, old, new):
+    _progression_container.children = [
+        _progression_figure_linear if new == "linear" else _progression_figure_log
+    ]
+
+
+progression_y_scale_select.on_change("value", on_progression_y_scale_change)
+
+
+def _log_safe(vals):
+    """NaN-out non-positive values instead of clamping to a floor -- a log
+    axis can't plot zero anyway, and clamping makes near-zero and
+    barely-below-threshold values look identical."""
+    arr = np.asarray(vals, dtype=float)
+    return np.where(arr > 0, arr, np.nan)
+
+
+def _update_progression_plot(history):
+    if not history:
+        empty = dict(iter=[], kl_fwd=[], kl_bwd=[], w1=[])
+        _progression_source_log.data = empty
+        _progression_source_linear.data = empty
+        return
+    iters = list(range(1, len(history) + 1))
+    kl_fwd_raw = [h[0] for h in history]
+    kl_bwd_raw = [h[1] for h in history]
+    w1_raw = [h[2] for h in history]
+    _progression_source_log.data = dict(
+        iter=iters,
+        kl_fwd=_log_safe(kl_fwd_raw),
+        kl_bwd=_log_safe(kl_bwd_raw),
+        w1=_log_safe(w1_raw),
+    )
+    _progression_source_linear.data = dict(
+        iter=iters,
+        kl_fwd=np.clip(kl_fwd_raw, 0, None),
+        kl_bwd=np.clip(kl_bwd_raw, 0, None),
+        w1=np.clip(w1_raw, 0, None),
+    )
+    y_max = max(np.max(kl_fwd_raw), np.max(kl_bwd_raw), np.max(w1_raw))
+    _progression_figure_linear.y_range.end = y_max * 1.1 or 1.0
+
 convergence_div = Div(
     text="<i>Add events to compute fixed-point iterations.</i>",
     styles={"font-size": "15px", "margin-top": "10px"},
@@ -225,14 +343,17 @@ def recompute():
 
     _update_surp_node()
 
-    n_iter, fixed_density = compute_fixed_point_iterations(node.events, alpha, mu, sigma, bw)
+    n_iter, fixed_density, history = compute_fixed_point_iterations(node.events, alpha, mu, sigma, bw)
     if n_iter is None and len(node.events) == 0:
         convergence_div.text = "<i>Add events to compute fixed-point iterations.</i>"
+        _update_progression_plot(None)
         return
     elif n_iter is None:
         convergence_div.text = f"<b>Did not converge within {MAX_ITER} iterations.</b>"
+        _update_progression_plot(None)
         return
 
+    _update_progression_plot(history)
     _add_to_overlay(fixed_density)
     fixed_entropy = differential_entropy_bits(fixed_density, SURP_GRID)
 
@@ -581,6 +702,8 @@ curdoc().add_root(Column(
     top_controls, transport_row,
     node.layout, surp_node.layout,
     convergence_div,
+    Row(progression_y_scale_select),
+    _progression_container,
     Row(clear_overlays_btn),
     _overlay_figure,
 ))
