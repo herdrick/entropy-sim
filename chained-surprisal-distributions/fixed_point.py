@@ -25,7 +25,7 @@ PRIOR_SIGMA_DEFAULT = 5
 TOOLS = "xpan,xwheel_zoom,xbox_zoom,reset,save"
 PLOT_WIDTH = 900
 MAX_ITER = 1000
-CONVERGENCE_TOL = 1e-8
+CONVERGENCE_TOL_LOG10_DEFAULT = -8
 
 # ── State ────────────────────────────────────────────────────────────────────
 root_events = np.array([], dtype=float)
@@ -102,7 +102,7 @@ def bar_colors(n):
 
 # ── Fixed-point iteration ─────────────────────────────────────────────────────
 
-def compute_fixed_point_iterations(events, init_edges, surp_edges, alpha, mu, sigma):
+def compute_fixed_point_iterations(events, init_edges, surp_edges, alpha, mu, sigma, tol):
     """Return (n_iter, converged_probs) or (None, None) if no convergence.
 
     init_edges: bins for the initial distribution (P1).
@@ -122,7 +122,7 @@ def compute_fixed_point_iterations(events, init_edges, surp_edges, alpha, mu, si
         bin_idx = np.clip(np.searchsorted(surp_interior, current_events), 0, len(probs) - 1)
         new_events = -np.log2(probs[bin_idx])
         new_probs = compute_probabilities(surp_edges, new_events, alpha, mu, sigma)
-        if np.max(np.abs(new_probs - probs)) < CONVERGENCE_TOL:
+        if np.max(np.abs(new_probs - probs)) < tol:
             return i + 1, new_probs
         current_events = new_events
         probs = new_probs
@@ -304,7 +304,8 @@ def recompute():
     _update_surp_node()
     surp_edges = (np.array([-np.inf] + sorted(surp_node.interior_edges) + [np.inf])
                   if surp_node is not None else edges)
-    n_iter, fixed_probs = compute_fixed_point_iterations(node.events, edges, surp_edges, alpha, mu, sigma)
+    n_iter, fixed_probs = compute_fixed_point_iterations(
+        node.events, edges, surp_edges, alpha, mu, sigma, tol=10 ** tol_slider.value)
     if n_iter is None and len(node.events) == 0:
         convergence_div.text = "<i>Add events to compute fixed-point iterations.</i>"
         return
@@ -667,6 +668,9 @@ clear_events_btn          = Button(label="Clear events",           button_type="
 single_event_input        = TextInput(placeholder="Add event at value…", width=200)
 single_event_count_input  = TextInput(value="1", width=60, title="")
 single_event_status       = Div(text="", width=200, styles={"color": "red", "font-size": "13px", "line-height": "2.2"})
+tol_slider = Slider(start=-12, end=-3, step=1, value=CONVERGENCE_TOL_LOG10_DEFAULT,
+                     title="Convergence tolerance (log₁₀)", width=200)
+tol_slider.on_change("value", lambda attr, old, new: recompute())
 
 history_back_btn = Button(label="◀", width=50, disabled=True)
 history_fwd_btn  = Button(label="▶", width=50, disabled=True)
@@ -976,7 +980,8 @@ top_controls = Column(
         add_events_one_by_one_btn,
         Div(text="<b>n =</b>", styles={"line-height": "2.2", "margin-left": "6px"}),
         n_events_input, Spacer(width=20),
-        clear_events_btn,
+        clear_events_btn, Spacer(width=20),
+        tol_slider,
     ),
     Row(
         single_event_input,
