@@ -32,6 +32,10 @@ PRIOR_ALPHA_DEFAULT = 0
 PRIOR_MU_DEFAULT = 0
 PRIOR_SIGMA_DEFAULT = 5
 BANDWIDTH_DEFAULT = 1.0
+GMM_COMPONENTS_DEFAULT = 2
+GMM_COMPONENTS_MAX = 8
+ADAPTIVE_KDE_SENSITIVITY = 0.5  # exponent on local/global density ratio -> bandwidth scaling
+DENSITY_METHODS = [("kde", "KDE"), ("adaptive_kde", "Adaptive KDE"), ("gmm", "GMM")]
 TOOLS = "xpan,xwheel_zoom,xbox_zoom,reset,save"
 PLOT_WIDTH = 900
 MAX_ITER = 1000
@@ -50,7 +54,59 @@ _step_cb_handle: list = [None]
 
 # ── Density helpers ────────────────────────────────────────────────────────
 
-def make_density_fn(events, alpha, mu, sigma, bw_factor) -> Callable[[np.ndarray], np.ndarray]:
+def _em_gmm_pdf(events, n_components):
+    """Fit a 1-D Gaussian mixture via EM. Refit from scratch on every call
+    (including up to MAX_ITER times inside the fixed-point loop), so this
+    stays cheap and deterministic: a fixed small iteration count, and
+    components seeded from quantile splits of the sorted events rather than
+    random init, so repeated refits on the same data land in the same place."""
+    n = len(events)
+    k = max(1, min(n_components, n))
+    splits = np.array_split(np.sort(events), k)
+    means = np.array([np.mean(s) for s in splits])
+    stds = np.array([max(np.std(s), 1e-2) for s in splits])
+    weights = np.full(k, 1.0 / k)
+    x = events[:, None]
+    for _ in range(25):
+        comp = weights[None, :] * scipy_norm.pdf(x, means[None, :], stds[None, :])
+        denom = np.clip(comp.sum(axis=1, keepdims=True), 1e-300, None)
+        resp = comp / denom
+        Nk = np.clip(resp.sum(axis=0), 1e-8, None)
+        means = (resp * x).sum(axis=0) / Nk
+        var = (resp * (x - means[None, :]) ** 2).sum(axis=0) / Nk
+        stds = np.sqrt(np.maximum(var, 1e-4))
+        weights = Nk / n
+
+    def pdf(xq):
+        xq = np.asarray(xq, dtype=float)
+        flat = xq.reshape(-1, 1)
+        vals = (weights[None, :] * scipy_norm.pdf(flat, means[None, :], stds[None, :])).sum(axis=1)
+        return vals.reshape(xq.shape)
+    return pdf
+
+
+def _adaptive_kde_pdf(events, bw_factor):
+    """Balloon-style KDE: a pilot fixed-bandwidth KDE gives a rough density at
+    each event, then each event's own kernel bandwidth is shrunk in dense
+    regions and widened in sparse ones (by (local/geometric-mean-density) **
+    -ADAPTIVE_KDE_SENSITIVITY), instead of one bandwidth for the whole
+    dataset."""
+    pilot = gaussian_kde(events, bw_method=lambda k: k.scotts_factor() * bw_factor)
+    pilot_at_events = np.clip(pilot(events), 1e-300, None)
+    g = np.exp(np.mean(np.log(pilot_at_events)))
+    h0 = float(np.sqrt(pilot.covariance[0, 0]))
+    local_h = np.clip(h0 * (pilot_at_events / g) ** (-ADAPTIVE_KDE_SENSITIVITY), 1e-3, None)
+
+    def pdf(xq):
+        xq = np.asarray(xq, dtype=float)
+        flat = xq.reshape(-1, 1)
+        z = (flat - events[None, :]) / local_h[None, :]
+        vals = (np.exp(-0.5 * z ** 2) / (local_h[None, :] * np.sqrt(2 * np.pi))).mean(axis=1)
+        return vals.reshape(xq.shape)
+    return pdf
+
+
+def make_density_fn(events, alpha, mu, sigma, method, bw_factor, n_components) -> Callable[[np.ndarray], np.ndarray]:
     """Fit a continuous density to `events`, blended with a Gaussian(mu,sigma)
     prior. Blend weight is n/(n+alpha) -- the continuous analogue of adding
     alpha pseudocounts worth of prior mass to a histogram."""
@@ -61,14 +117,18 @@ def make_density_fn(events, alpha, mu, sigma, bw_factor) -> Callable[[np.ndarray
     if n == 1 or np.ptp(events) < 1e-9:
         center = float(np.mean(events))
         narrow = max(sigma, 1e-2) * 0.05
-        kde_pdf = lambda x: scipy_norm.pdf(np.asarray(x, dtype=float), loc=center, scale=narrow)
+        raw_pdf = lambda x: scipy_norm.pdf(np.asarray(x, dtype=float), loc=center, scale=narrow)
+    elif method == "gmm":
+        raw_pdf = _em_gmm_pdf(events, n_components)
+    elif method == "adaptive_kde":
+        raw_pdf = _adaptive_kde_pdf(events, bw_factor)
     else:
         kde = gaussian_kde(events, bw_method=lambda k: k.scotts_factor() * bw_factor)
-        kde_pdf = lambda x: kde(np.asarray(x, dtype=float))
+        raw_pdf = lambda x: kde(np.asarray(x, dtype=float))
     if alpha <= 0:
-        return kde_pdf
+        return raw_pdf
     w = n / (n + alpha)
-    return lambda x: w * kde_pdf(x) + (1 - w) * prior_pdf(x)
+    return lambda x: w * raw_pdf(x) + (1 - w) * prior_pdf(x)
 
 
 def surprisal_bits(x, density_fn):
@@ -103,7 +163,7 @@ def wasserstein_distance(p_fn, q_fn, grid):
     return float(np.trapezoid(np.abs(F_p - F_q), grid))
 
 
-def compute_fixed_point_iterations(events, alpha, mu, sigma, bw_factor):
+def compute_fixed_point_iterations(events, alpha, mu, sigma, method, bw_factor, n_components):
     """Return (n_iter, final_density_fn, final_events, history) or all-None if no
     convergence.
 
@@ -123,13 +183,13 @@ def compute_fixed_point_iterations(events, alpha, mu, sigma, bw_factor):
     """
     if len(events) == 0:
         return None, None, None, None
-    p1_density = make_density_fn(events, alpha, mu, sigma, bw_factor)
+    p1_density = make_density_fn(events, alpha, mu, sigma, method, bw_factor, n_components)
     current_events = surprisal_bits(events, p1_density)
-    density = make_density_fn(current_events, alpha, mu, sigma, bw_factor)
+    density = make_density_fn(current_events, alpha, mu, sigma, method, bw_factor, n_components)
     history = []
     for i in range(MAX_ITER):
         new_events = surprisal_bits(current_events, density)
-        new_density = make_density_fn(new_events, alpha, mu, sigma, bw_factor)
+        new_density = make_density_fn(new_events, alpha, mu, sigma, method, bw_factor, n_components)
         w1 = wasserstein_distance(density, new_density, SURP_GRID)
         history.append((
             kl_divergence_bits(density, new_density, SURP_GRID),
@@ -154,6 +214,8 @@ class PNode:
     prior_mu_slider: Slider = None
     prior_sigma_slider: Slider = None
     bandwidth_slider: Slider = None
+    method_select: Select = None
+    n_components_slider: Slider = None
     y_scale_toggle: Select = None
     current_density: object = None
     grid: np.ndarray = None
@@ -365,7 +427,8 @@ def _update_surp_node():
     mu = surp_node.prior_mu_slider.value
     sigma = surp_node.prior_sigma_slider.value
     bw = surp_node.bandwidth_slider.value
-    density_fn = make_density_fn(surp_events, alpha, mu, sigma, bw)
+    density_fn = make_density_fn(surp_events, alpha, mu, sigma,
+                                  surp_node.method_select.value, bw, surp_node.n_components_slider.value)
     _update_curve(surp_node, density_fn, SURP_GRID)
     surp_node.figure.title.text = (
         f"S(P1)  |  entropy = {differential_entropy_bits(density_fn, SURP_GRID):.4f} bits"
@@ -379,7 +442,9 @@ def recompute():
     mu = node.prior_mu_slider.value
     sigma = node.prior_sigma_slider.value
     bw = node.bandwidth_slider.value
-    density_fn = make_density_fn(node.events, alpha, mu, sigma, bw)
+    method = node.method_select.value
+    n_components = node.n_components_slider.value
+    density_fn = make_density_fn(node.events, alpha, mu, sigma, method, bw, n_components)
     _update_curve(node, density_fn, VALUE_GRID)
     node.figure.title.text = (
         f"P1  |  entropy = {differential_entropy_bits(density_fn, VALUE_GRID):.4f} bits"
@@ -387,7 +452,8 @@ def recompute():
 
     _update_surp_node()
 
-    n_iter, fixed_density, fixed_events, history = compute_fixed_point_iterations(node.events, alpha, mu, sigma, bw)
+    n_iter, fixed_density, fixed_events, history = compute_fixed_point_iterations(
+        node.events, alpha, mu, sigma, method, bw, n_components)
     if n_iter is None and len(node.events) == 0:
         convergence_div.text = "<i>Add events to compute fixed-point iterations.</i>"
         _update_progression_plot(None)
@@ -456,6 +522,19 @@ def _make_curve_figure(title, x_range, x_label):
     return fig, source, rug_source, rug_glyph
 
 
+def _param_row(nd):
+    """Only show the slider(s) relevant to the currently-selected fit method:
+    bandwidth for the two KDE variants, component count for GMM."""
+    children = [nd.prior_alpha_slider, Spacer(width=20), nd.prior_mu_slider, Spacer(width=20),
+                nd.prior_sigma_slider]
+    if nd.method_select.value in ("kde", "adaptive_kde"):
+        children += [Spacer(width=20), nd.bandwidth_slider]
+    if nd.method_select.value == "gmm":
+        children += [Spacer(width=20), nd.n_components_slider]
+    children += [Spacer(width=20), nd.method_select]
+    return Row(*children)
+
+
 def make_node(initial_events, alpha_end=5, x_range=(X_MIN, X_MAX), x_label="Value",
               mu_range=(-10, 10), sigma_range=(0.1, 20), title="P1  |  entropy = 0.0000 bits"):
     n = PNode()
@@ -468,6 +547,8 @@ def make_node(initial_events, alpha_end=5, x_range=(X_MIN, X_MAX), x_label="Valu
     n.prior_mu_slider = Slider(start=mu_range[0], end=mu_range[1], value=PRIOR_MU_DEFAULT, step=0.1, title="Prior mean μ", width=250)
     n.prior_sigma_slider = Slider(start=sigma_range[0], end=sigma_range[1], value=PRIOR_SIGMA_DEFAULT, step=0.1, title="Prior std dev σ", width=250)
     n.bandwidth_slider = Slider(start=0.1, end=3.0, value=BANDWIDTH_DEFAULT, step=0.05, title="KDE bandwidth factor", width=250)
+    n.n_components_slider = Slider(start=1, end=GMM_COMPONENTS_MAX, value=GMM_COMPONENTS_DEFAULT, step=1, title="GMM components", width=250)
+    n.method_select = Select(value="kde", options=DENSITY_METHODS, title="Fit method", width=140)
     n.y_scale_toggle = Select(value="adaptive",
                                options=[("fixed", "Y: fixed 0–1"), ("adaptive", "Y: adaptive")],
                                width=140)
@@ -475,17 +556,22 @@ def make_node(initial_events, alpha_end=5, x_range=(X_MIN, X_MAX), x_label="Valu
     def on_param_change(attr, old, new):
         recompute()
 
+    def on_method_change(attr, old, new, nd=n):
+        nd.layout.children[0] = _param_row(nd)
+        recompute()
+
     def on_y_scale_toggle(attr, old, new, nd=n):
         nd.y_range_adaptive = (new == "adaptive")
         recompute()
 
-    for s in (n.prior_alpha_slider, n.prior_mu_slider, n.prior_sigma_slider, n.bandwidth_slider):
+    for s in (n.prior_alpha_slider, n.prior_mu_slider, n.prior_sigma_slider,
+              n.bandwidth_slider, n.n_components_slider):
         s.on_change("value", on_param_change)
+    n.method_select.on_change("value", on_method_change)
     n.y_scale_toggle.on_change("value", on_y_scale_toggle)
 
     n.layout = Column(
-        Row(n.prior_alpha_slider, Spacer(width=20), n.prior_mu_slider, Spacer(width=20),
-            n.prior_sigma_slider, Spacer(width=20), n.bandwidth_slider),
+        _param_row(n),
         n.figure,
         Row(n.y_scale_toggle),
     )
