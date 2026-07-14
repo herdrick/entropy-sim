@@ -119,6 +119,8 @@ class PNode:
     y_range_adaptive: bool = True
     trace_source: ColumnDataSource = None
     trace_spans: list = field(default_factory=list)
+    rug_source: ColumnDataSource = None
+    rug_glyph: object = None
 
 
 # ── Density helpers ────────────────────────────────────────────────────────
@@ -228,6 +230,9 @@ def recompute_from(nd):
     label = "P1" if nd.depth == 0 else f"P{nd.depth + 1}"
     nd.figure.title.text = f"{label}  |  entropy = {differential_entropy_bits(density_fn, nd.grid):.4f} bits"
 
+    rug_h = nd.figure.y_range.end * 0.03
+    nd.rug_source.data = dict(x=nd.events, y0=np.zeros(len(nd.events)), y1=np.full(len(nd.events), rug_h))
+
     if nd.child is not None:
         nd.child.events = surprisal_bits(nd.events, density_fn)
         recompute_from(nd.child)
@@ -332,6 +337,12 @@ def make_p_node(initial_events, depth):
     nd.trace_source = ColumnDataSource(data=dict(x=[], y=[], color=[]))
     nd.figure.scatter(x="x", y="y", source=nd.trace_source, color="color", size=9,
                        line_color="black", line_width=1, level="overlay")
+    nd.rug_source = ColumnDataSource(data=dict(x=[], y0=[], y1=[]))
+    nd.rug_glyph = nd.figure.segment(
+        x0="x", y0="y0", x1="x", y1="y1", source=nd.rug_source,
+        line_color="#444444", line_width=1,
+        line_alpha=rug_alpha_slider.value, visible=(0 in rug_checkbox.active),
+    )
     nd.figure.xgrid.grid_line_color = None
     nd.figure.ygrid.grid_line_color = None
     nd.figure.xaxis.axis_label = x_label
@@ -436,6 +447,23 @@ single_event_status = Div(text="", width=200, styles={"color": "red", "font-size
 trace_checkbox = CheckboxGroup(labels=["Trace new events"], active=[])
 clear_traces_btn = Button(label="Clear traces", button_type="default", width=110)
 trace_summary_div = Div(text="", styles={"font-size": "13px", "line-height": "1.8"})
+rug_checkbox = CheckboxGroup(labels=["Show event rug"], active=[])
+rug_alpha_slider = Slider(start=0.0, end=1.0, value=0.15, step=0.01, title="Rug opacity", width=200)
+
+
+def on_rug_checkbox_change(attr, old, new):
+    visible = 0 in new
+    for nd in _all_nodes:
+        nd.rug_glyph.visible = visible
+
+
+def on_rug_alpha_change(attr, old, new):
+    for nd in _all_nodes:
+        nd.rug_glyph.glyph.line_alpha = new
+
+
+rug_checkbox.on_change("active", on_rug_checkbox_change)
+rug_alpha_slider.on_change("value", on_rug_alpha_change)
 
 
 def set_trace_new_indices(n):
@@ -717,6 +745,9 @@ top_controls = Column(
         Spacer(width=30),
         Div(text="<b>Layout:</b>", styles={"line-height": "2.2"}),
         col_count_radio,
+        Spacer(width=30),
+        rug_checkbox,
+        rug_alpha_slider,
     ),
 )
 

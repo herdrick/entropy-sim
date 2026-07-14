@@ -20,7 +20,7 @@ from typing import Optional, Callable
 from bokeh.plotting import figure, curdoc
 from bokeh.models import (
     ColumnDataSource, Div, TextInput, Button, Row, Column, Spacer, Select,
-    RadioButtonGroup, Slider, HoverTool, Range1d,
+    RadioButtonGroup, Slider, HoverTool, Range1d, CheckboxGroup,
 )
 import events as ev
 
@@ -104,7 +104,7 @@ def wasserstein_distance(p_fn, q_fn, grid):
 
 
 def compute_fixed_point_iterations(events, alpha, mu, sigma, bw_factor):
-    """Return (n_iter, final_density_fn, history) or (None, None, None) if no
+    """Return (n_iter, final_density_fn, final_events, history) or all-None if no
     convergence.
 
     Mirrors fixed_point.py's iteration: map events -> S(P1) samples, then
@@ -122,7 +122,7 @@ def compute_fixed_point_iterations(events, alpha, mu, sigma, bw_factor):
     true metric and has only one value per step.
     """
     if len(events) == 0:
-        return None, None, None
+        return None, None, None, None
     p1_density = make_density_fn(events, alpha, mu, sigma, bw_factor)
     current_events = surprisal_bits(events, p1_density)
     density = make_density_fn(current_events, alpha, mu, sigma, bw_factor)
@@ -137,10 +137,10 @@ def compute_fixed_point_iterations(events, alpha, mu, sigma, bw_factor):
             w1,
         ))
         if w1 < WASSERSTEIN_TOL:
-            return i + 1, new_density, history
+            return i + 1, new_density, new_events, history
         current_events = new_events
         density = new_density
-    return None, None, None
+    return None, None, None, None
 
 
 # ── Node ──────────────────────────────────────────────────────────────────────
@@ -159,6 +159,8 @@ class PNode:
     grid: np.ndarray = None
     layout: Column = None
     y_range_adaptive: bool = True
+    rug_source: ColumnDataSource = None
+    rug_glyph: object = None
 
 
 node: Optional[PNode] = None
@@ -166,9 +168,13 @@ surp_node: Optional[PNode] = None
 session_record: int = 0
 session_record_rows: list = []
 
+rug_checkbox = CheckboxGroup(labels=["Show event rug"], active=[])
+rug_alpha_slider = Slider(start=0.0, end=1.0, value=0.15, step=0.01, title="Rug opacity", width=200)
+
 clear_overlays_btn = Button(label="Clear overlays", width=130, button_type="warning")
 _overlay_source = ColumnDataSource(data=dict(xs=[], ys=[]))
 _overlay_count = 0
+_overlay_all_events: np.ndarray = np.array([], dtype=float)
 _overlay_figure = figure(
     width=PLOT_WIDTH, height=280,
     x_range=(S_MIN, S_MAX),
@@ -182,10 +188,35 @@ _overlay_figure.xgrid.grid_line_color = None
 _overlay_figure.ygrid.grid_line_color = None
 _overlay_figure.xaxis.axis_label = "Surprisal (bits)"
 _overlay_figure.yaxis.axis_label = "Density"
+_overlay_rug_source = ColumnDataSource(data=dict(x=[], y0=[], y1=[]))
+_overlay_rug_glyph = _overlay_figure.segment(
+    x0="x", y0="y0", x1="x", y1="y1", source=_overlay_rug_source,
+    line_color="#444444", line_width=1,
+    line_alpha=rug_alpha_slider.value, visible=(0 in rug_checkbox.active),
+)
 
 
-def _add_to_overlay(density_fn):
-    global _overlay_count
+def _rug_glyphs():
+    return [node.rug_glyph, surp_node.rug_glyph, _overlay_rug_glyph]
+
+
+def on_rug_checkbox_change(attr, old, new):
+    visible = 0 in new
+    for g in _rug_glyphs():
+        g.visible = visible
+
+
+def on_rug_alpha_change(attr, old, new):
+    for g in _rug_glyphs():
+        g.glyph.line_alpha = new
+
+
+rug_checkbox.on_change("active", on_rug_checkbox_change)
+rug_alpha_slider.on_change("value", on_rug_alpha_change)
+
+
+def _add_to_overlay(density_fn, events):
+    global _overlay_count, _overlay_all_events
     y = density_fn(SURP_GRID)
     old = _overlay_source.data
     _overlay_source.data = dict(
@@ -197,11 +228,21 @@ def _add_to_overlay(density_fn):
     _overlay_figure.y_range.end = y_max * 1.1 or 1.0
     _overlay_figure.title.text = f"Fixed-point overlays — {_overlay_count} points"
 
+    _overlay_all_events = np.concatenate([_overlay_all_events, events])
+    rug_h = _overlay_figure.y_range.end * 0.03
+    _overlay_rug_source.data = dict(
+        x=_overlay_all_events,
+        y0=np.zeros(len(_overlay_all_events)),
+        y1=np.full(len(_overlay_all_events), rug_h),
+    )
+
 
 def on_clear_overlays():
-    global _overlay_count
+    global _overlay_count, _overlay_all_events
     _overlay_source.data = dict(xs=[], ys=[])
     _overlay_count = 0
+    _overlay_all_events = np.array([], dtype=float)
+    _overlay_rug_source.data = dict(x=[], y0=[], y1=[])
     _overlay_figure.title.text = "Fixed-point overlays — 0 points"
 
 
@@ -304,6 +345,8 @@ def _update_curve(nd: PNode, density_fn, grid):
         nd.figure.y_range.end = float(np.max(y)) * 1.05 if len(y) else 1.0
     else:
         nd.figure.y_range.end = 1.0
+    rug_h = nd.figure.y_range.end * 0.03
+    nd.rug_source.data = dict(x=nd.events, y0=np.zeros(len(nd.events)), y1=np.full(len(nd.events), rug_h))
 
 
 def _update_surp_node():
@@ -312,6 +355,7 @@ def _update_surp_node():
         return
     if node.current_density is None or len(node.events) == 0:
         empty_density = lambda x: np.zeros_like(np.asarray(x, dtype=float))
+        surp_node.events = np.array([], dtype=float)
         _update_curve(surp_node, empty_density, SURP_GRID)
         surp_node.figure.title.text = "S(P1) — First Surprisal Distribution"
         return
@@ -343,7 +387,7 @@ def recompute():
 
     _update_surp_node()
 
-    n_iter, fixed_density, history = compute_fixed_point_iterations(node.events, alpha, mu, sigma, bw)
+    n_iter, fixed_density, fixed_events, history = compute_fixed_point_iterations(node.events, alpha, mu, sigma, bw)
     if n_iter is None and len(node.events) == 0:
         convergence_div.text = "<i>Add events to compute fixed-point iterations.</i>"
         _update_progression_plot(None)
@@ -354,7 +398,7 @@ def recompute():
         return
 
     _update_progression_plot(history)
-    _add_to_overlay(fixed_density)
+    _add_to_overlay(fixed_density, fixed_events)
     fixed_entropy = differential_entropy_bits(fixed_density, SURP_GRID)
 
     s = "iteration" if n_iter == 1 else "iterations"
@@ -403,7 +447,13 @@ def _make_curve_figure(title, x_range, x_label):
     fig.ygrid.grid_line_color = None
     fig.xaxis.axis_label = x_label
     fig.yaxis.axis_label = "Density"
-    return fig, source
+    rug_source = ColumnDataSource(data=dict(x=[], y0=[], y1=[]))
+    rug_glyph = fig.segment(
+        x0="x", y0="y0", x1="x", y1="y1", source=rug_source,
+        line_color="#444444", line_width=1,
+        line_alpha=rug_alpha_slider.value, visible=(0 in rug_checkbox.active),
+    )
+    return fig, source, rug_source, rug_glyph
 
 
 def make_node(initial_events, alpha_end=5, x_range=(X_MIN, X_MAX), x_label="Value",
@@ -412,7 +462,7 @@ def make_node(initial_events, alpha_end=5, x_range=(X_MIN, X_MAX), x_label="Valu
     n.events = initial_events
     n.grid = VALUE_GRID
 
-    n.figure, n.source = _make_curve_figure(title, x_range, x_label)
+    n.figure, n.source, n.rug_source, n.rug_glyph = _make_curve_figure(title, x_range, x_label)
 
     n.prior_alpha_slider = Slider(start=0, end=alpha_end, value=PRIOR_ALPHA_DEFAULT, step=0.1, title="Prior strength α", width=250)
     n.prior_mu_slider = Slider(start=mu_range[0], end=mu_range[1], value=PRIOR_MU_DEFAULT, step=0.1, title="Prior mean μ", width=250)
@@ -681,6 +731,9 @@ top_controls = Column(
         Div(text="<b>n =</b>", styles={"line-height": "2.2", "margin-left": "6px"}),
         n_events_input, Spacer(width=20),
         clear_events_btn,
+        Spacer(width=30),
+        rug_checkbox,
+        rug_alpha_slider,
     ),
     Row(
         single_event_input,
