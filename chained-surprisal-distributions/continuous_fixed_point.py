@@ -39,7 +39,7 @@ DENSITY_METHODS = [("kde", "KDE"), ("adaptive_kde", "Adaptive KDE"), ("gmm", "GM
 TOOLS = "xpan,xwheel_zoom,xbox_zoom,reset,save"
 PLOT_WIDTH = 900
 MAX_ITER = 1000
-WASSERSTEIN_TOL = 1e-10
+WASSERSTEIN_TOL_LOG10_DEFAULT = -10
 
 VALUE_GRID = np.linspace(X_MIN, X_MAX, GRID_N)
 SURP_GRID = np.linspace(S_MIN, S_MAX, GRID_N)
@@ -163,14 +163,14 @@ def wasserstein_distance(p_fn, q_fn, grid):
     return float(np.trapezoid(np.abs(F_p - F_q), grid))
 
 
-def compute_fixed_point_iterations(events, alpha, mu, sigma, method, bw_factor, n_components):
+def compute_fixed_point_iterations(events, alpha, mu, sigma, method, bw_factor, n_components, tol):
     """Return (n_iter, final_density_fn, final_events, history) or all-None if no
     convergence.
 
     Mirrors fixed_point.py's iteration: map events -> S(P1) samples, then
     repeatedly re-transform through the current density and refit, until
     the distribution stops moving: the Wasserstein (W1) distance between
-    P_i and P_i+1 drops below WASSERSTEIN_TOL. W1 is used (rather than a
+    P_i and P_i+1 drops below tol. W1 is used (rather than a
     raw pointwise density comparison) because it accounts for how much
     probability mass actually shifted, not just the worst-case height
     difference at any single point.
@@ -196,7 +196,7 @@ def compute_fixed_point_iterations(events, alpha, mu, sigma, method, bw_factor, 
             kl_divergence_bits(new_density, density, SURP_GRID),
             w1,
         ))
-        if w1 < WASSERSTEIN_TOL:
+        if w1 < tol:
             return i + 1, new_density, new_events, history
         current_events = new_events
         density = new_density
@@ -232,6 +232,9 @@ session_record_rows: list = []
 
 rug_checkbox = CheckboxGroup(labels=["Show event rug"], active=[])
 rug_alpha_slider = Slider(start=0.0, end=1.0, value=0.15, step=0.01, title="Rug opacity", width=200)
+tol_slider = Slider(start=-12, end=-3, step=1, value=WASSERSTEIN_TOL_LOG10_DEFAULT,
+                     title="Convergence tolerance (log₁₀)", width=200)
+tol_slider.on_change("value", lambda attr, old, new: recompute())
 
 clear_overlays_btn = Button(label="Clear overlays", width=130, button_type="warning")
 _overlay_source = ColumnDataSource(data=dict(xs=[], ys=[]))
@@ -453,7 +456,7 @@ def recompute():
     _update_surp_node()
 
     n_iter, fixed_density, fixed_events, history = compute_fixed_point_iterations(
-        node.events, alpha, mu, sigma, method, bw, n_components)
+        node.events, alpha, mu, sigma, method, bw, n_components, tol=10 ** tol_slider.value)
     if n_iter is None and len(node.events) == 0:
         convergence_div.text = "<i>Add events to compute fixed-point iterations.</i>"
         _update_progression_plot(None)
@@ -820,6 +823,7 @@ top_controls = Column(
         Spacer(width=30),
         rug_checkbox,
         rug_alpha_slider,
+        tol_slider,
     ),
     Row(
         single_event_input,
