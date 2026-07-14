@@ -15,6 +15,7 @@ import numpy as np
 np.set_printoptions(formatter={'float': lambda x: f"{x},"})
 
 from scipy.stats import norm as scipy_norm, gaussian_kde
+from scipy.interpolate import CubicSpline
 from dataclasses import dataclass, field
 from typing import Optional, Callable
 from bokeh.plotting import figure, curdoc
@@ -35,7 +36,7 @@ BANDWIDTH_DEFAULT = 1.0
 GMM_COMPONENTS_DEFAULT = 2
 GMM_COMPONENTS_MAX = 8
 ADAPTIVE_KDE_SENSITIVITY = 0.5  # exponent on local/global density ratio -> bandwidth scaling
-DENSITY_METHODS = [("kde", "KDE"), ("adaptive_kde", "Adaptive KDE"), ("gmm", "GMM")]
+DENSITY_METHODS = [("kde", "KDE"), ("adaptive_kde", "Adaptive KDE"), ("gmm", "GMM"), ("bspline", "B-spline")]
 TOOLS = "xpan,xwheel_zoom,xbox_zoom,reset,save"
 PLOT_WIDTH = 900
 MAX_ITER = 1000
@@ -106,6 +107,50 @@ def _adaptive_kde_pdf(events, bw_factor):
     return pdf
 
 
+def _bspline_pdf(events, bw_factor):
+    """Bin events into a histogram, Gaussian-smooth the bin heights (kernel
+    width in bins set by bw_factor), then fit a cubic spline through the
+    sqrt of the smoothed heights -- squaring on evaluation guarantees the
+    result stays non-negative without constrained optimization. Cheap to
+    refit (histogram + spline through O(sqrt(n)) points, not O(n)).
+
+    Unlike KDE/GMM/Adaptive-KDE, this has compact support: outside the
+    padded histogram range the density is exactly 0, not a shrinking tail,
+    so with no prior (alpha=0) an event far outside the observed range gets
+    surprisal clipped to the -log2(1e-300) ceiling rather than a large but
+    finite value."""
+    n = len(events)
+    n_bins = max(6, min(60, int(np.sqrt(n)) + 2))
+    lo, hi = np.min(events), np.max(events)
+    pad = (hi - lo) * 0.15 + 1e-6
+    edges = np.linspace(lo - pad, hi + pad, n_bins + 1)
+    counts, edges = np.histogram(events, bins=edges)
+    widths = np.diff(edges)
+    centers = (edges[:-1] + edges[1:]) / 2
+    hist_density = counts / (n * widths)
+
+    sigma_bins = max(0.6, bw_factor * 1.5)
+    radius = max(1, int(np.ceil(3 * sigma_bins)))
+    k = np.arange(-radius, radius + 1)
+    kernel = np.exp(-0.5 * (k / sigma_bins) ** 2)
+    kernel /= kernel.sum()
+    padded = np.pad(hist_density, radius, mode="constant")
+    smoothed = np.convolve(padded, kernel, mode="valid")
+
+    spline = CubicSpline(centers, np.sqrt(np.clip(smoothed, 0, None)), extrapolate=False)
+
+    def raw(xq):
+        xq = np.asarray(xq, dtype=float)
+        vals = spline(xq)
+        vals = np.where(np.isnan(vals), 0.0, vals)
+        return np.clip(vals, 0, None) ** 2
+
+    grid = np.linspace(edges[0], edges[-1], 400)
+    mass = np.trapezoid(raw(grid), grid)
+    mass = mass if mass > 1e-12 else 1.0
+    return lambda xq: raw(xq) / mass
+
+
 def make_density_fn(events, alpha, mu, sigma, method, bw_factor, n_components) -> Callable[[np.ndarray], np.ndarray]:
     """Fit a continuous density to `events`, blended with a Gaussian(mu,sigma)
     prior. Blend weight is n/(n+alpha) -- the continuous analogue of adding
@@ -122,6 +167,8 @@ def make_density_fn(events, alpha, mu, sigma, method, bw_factor, n_components) -
         raw_pdf = _em_gmm_pdf(events, n_components)
     elif method == "adaptive_kde":
         raw_pdf = _adaptive_kde_pdf(events, bw_factor)
+    elif method == "bspline":
+        raw_pdf = _bspline_pdf(events, bw_factor)
     else:
         kde = gaussian_kde(events, bw_method=lambda k: k.scotts_factor() * bw_factor)
         raw_pdf = lambda x: kde(np.asarray(x, dtype=float))
@@ -530,7 +577,7 @@ def _param_row(nd):
     bandwidth for the two KDE variants, component count for GMM."""
     children = [nd.prior_alpha_slider, Spacer(width=20), nd.prior_mu_slider, Spacer(width=20),
                 nd.prior_sigma_slider]
-    if nd.method_select.value in ("kde", "adaptive_kde"):
+    if nd.method_select.value in ("kde", "adaptive_kde", "bspline"):
         children += [Spacer(width=20), nd.bandwidth_slider]
     if nd.method_select.value == "gmm":
         children += [Spacer(width=20), nd.n_components_slider]
@@ -549,7 +596,7 @@ def make_node(initial_events, alpha_end=5, x_range=(X_MIN, X_MAX), x_label="Valu
     n.prior_alpha_slider = Slider(start=0, end=alpha_end, value=PRIOR_ALPHA_DEFAULT, step=0.1, title="Prior strength α", width=250)
     n.prior_mu_slider = Slider(start=mu_range[0], end=mu_range[1], value=PRIOR_MU_DEFAULT, step=0.1, title="Prior mean μ", width=250)
     n.prior_sigma_slider = Slider(start=sigma_range[0], end=sigma_range[1], value=PRIOR_SIGMA_DEFAULT, step=0.1, title="Prior std dev σ", width=250)
-    n.bandwidth_slider = Slider(start=0.1, end=3.0, value=BANDWIDTH_DEFAULT, step=0.05, title="KDE bandwidth factor", width=250)
+    n.bandwidth_slider = Slider(start=0.1, end=3.0, value=BANDWIDTH_DEFAULT, step=0.05, title="Bandwidth / smoothing factor", width=250)
     n.n_components_slider = Slider(start=1, end=GMM_COMPONENTS_MAX, value=GMM_COMPONENTS_DEFAULT, step=1, title="GMM components", width=250)
     n.method_select = Select(value="kde", options=DENSITY_METHODS, title="Fit method", width=140)
     n.y_scale_toggle = Select(value="adaptive",
