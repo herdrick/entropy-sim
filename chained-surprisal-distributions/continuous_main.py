@@ -252,6 +252,23 @@ def make_density_fn(events, alpha, mu, sigma, method, bw_factor, n_components) -
 
 
 def surprisal_bits(x, density_fn):
+    # This treats density(x) directly as if it were a probability -- there's no
+    # bin lookup / bin width anywhere. That's the differential-entropy
+    # convention (matches differential_entropy_bits below, -int p*log2(p) dx),
+    # not the discrete-Shannon one, and it comes with real caveats:
+    #
+    # - A true discretized surprisal would be S = -log2(P) where
+    #   P ~= density(x) * dx for some bin width dx. Using density(x) alone is
+    #   equivalent to silently fixing dx = 1 in whatever units x is in.
+    # - Not scale-invariant: rescale x (e.g. events *= 10) and density scales
+    #   by 1/10, shifting every surprisal value by a constant log2(10) bits.
+    #   Absolute numbers only mean something relative to x's units; comparisons
+    #   *within* one density_fn are still meaningful.
+    # - density(x) can exceed 1 (e.g. a narrow Gaussian), so surprisal can go
+    #   negative -- unlike discrete Shannon surprisal, which is always >= 0.
+    # - Strictly speaking, a continuous RV has P(X=x) = 0 at any single point,
+    #   so there's no well-defined "information content of this exact event";
+    #   this is a differential-entropy analogue, not that quantity.
     p = np.clip(density_fn(x), 1e-300, None)
     return -np.log2(p)
 
