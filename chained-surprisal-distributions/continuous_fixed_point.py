@@ -283,6 +283,7 @@ class PNode:
     prior_sigma_slider: Slider = None
     bandwidth_slider: Slider = None
     bin_width_slider: Slider = None
+    bin_width_panel: object = None
     method_select: Select = None
     n_components_slider: Slider = None
     y_scale_toggle: Select = None
@@ -599,7 +600,7 @@ def _param_row(nd):
     """Only show the slider(s) relevant to the currently-selected fit method:
     bandwidth for the two KDE variants, component count for GMM."""
     children = [nd.prior_alpha_slider, Spacer(width=20), nd.prior_mu_slider, Spacer(width=20),
-                nd.prior_sigma_slider, Spacer(width=20), nd.bin_width_slider]
+                nd.prior_sigma_slider]
     if nd.method_select.value in ("kde", "adaptive_kde", "bspline"):
         children += [Spacer(width=20), nd.bandwidth_slider]
     if nd.method_select.value == "gmm":
@@ -620,7 +621,7 @@ def make_node(initial_events, alpha_end=5, x_range=(X_MIN, X_MAX), x_label="Valu
     n.prior_mu_slider = Slider(start=mu_range[0], end=mu_range[1], value=PRIOR_MU_DEFAULT, step=0.1, title="Prior mean μ", width=250)
     n.prior_sigma_slider = Slider(start=sigma_range[0], end=sigma_range[1], value=PRIOR_SIGMA_DEFAULT, step=0.1, title="Prior std dev σ", width=250)
     n.bandwidth_slider = Slider(start=0.1, end=3.0, value=BANDWIDTH_DEFAULT, step=0.05, title="Bandwidth / smoothing factor", width=250)
-    n.bin_width_slider = Slider(start=0.01, end=5.0, value=BIN_WIDTH_DEFAULT, step=0.01, title="Bin width Δx (for surprisal)", width=250)
+    n.bin_width_slider = Slider(start=0.01, end=5.0, value=BIN_WIDTH_DEFAULT, step=0.01, title="Bin width Δx", width=250)
     n.n_components_slider = Slider(start=1, end=GMM_COMPONENTS_MAX, value=GMM_COMPONENTS_DEFAULT, step=1, title="GMM components", width=250)
     n.method_select = Select(value="kde", options=DENSITY_METHODS, title="Fit method", width=140)
     n.y_scale_toggle = Select(value="adaptive",
@@ -644,9 +645,10 @@ def make_node(initial_events, alpha_end=5, x_range=(X_MIN, X_MAX), x_label="Valu
     n.method_select.on_change("value", on_method_change)
     n.y_scale_toggle.on_change("value", on_y_scale_toggle)
 
+    n.bin_width_panel = Column(n.bin_width_slider)
     n.layout = Column(
         _param_row(n),
-        n.figure,
+        Row(n.figure, Spacer(width=20), n.bin_width_panel),
         Row(n.y_scale_toggle),
     )
     return n

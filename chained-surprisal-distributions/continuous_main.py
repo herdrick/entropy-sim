@@ -117,6 +117,7 @@ class PNode:
     prior_sigma_slider: Slider = None
     bandwidth_slider: Slider = None
     bin_width_slider: Slider = None
+    bin_width_panel: object = None
     method_select: Select = None
     n_components_slider: Slider = None
     y_scale_toggle: Select = None
@@ -309,7 +310,7 @@ def _param_row(nd):
     """Only show the slider(s) relevant to the currently-selected fit method:
     bandwidth for the two KDE variants, component count for GMM."""
     children = [nd.prior_alpha_slider, Spacer(width=20), nd.prior_mu_slider, Spacer(width=20),
-                nd.prior_sigma_slider, Spacer(width=20), nd.bin_width_slider]
+                nd.prior_sigma_slider]
     if nd.method_select.value in ("kde", "adaptive_kde", "bspline"):
         children += [Spacer(width=20), nd.bandwidth_slider]
     if nd.method_select.value == "gmm":
@@ -326,7 +327,7 @@ def rebuild_grid():
                   nd.bandwidth_slider, nd.bin_width_slider, nd.n_components_slider):
             s.width = 250
         nd.layout.children[0] = _param_row(nd)
-        nd.layout.children[1] = nd.figure
+        nd.layout.children[1] = Row(nd.figure, Spacer(width=20), nd.bin_width_panel)
         nd.kl_div_display.width = None
         nd.layout.children[3] = Row(
             nd.derive_btn, nd.gang_checkbox, nd.kl_div_display,
@@ -505,7 +506,7 @@ def make_p_node(initial_events, depth):
     nd.prior_mu_slider = Slider(start=mu_range[0], end=mu_range[1], value=PRIOR_MU_DEFAULT, step=0.1, title="Prior mean μ", width=250)
     nd.prior_sigma_slider = Slider(start=sigma_range[0], end=sigma_range[1], value=PRIOR_SIGMA_DEFAULT, step=0.1, title="Prior std dev σ", width=250)
     nd.bandwidth_slider = Slider(start=0.1, end=3.0, value=BANDWIDTH_DEFAULT, step=0.05, title="Bandwidth / smoothing factor", width=250)
-    nd.bin_width_slider = Slider(start=0.01, end=5.0, value=BIN_WIDTH_DEFAULT, step=0.01, title="Bin width Δx (for child's surprisal)", width=250)
+    nd.bin_width_slider = Slider(start=0.01, end=5.0, value=BIN_WIDTH_DEFAULT, step=0.01, title="Bin width Δx", width=250)
     nd.n_components_slider = Slider(start=1, end=GMM_COMPONENTS_MAX, value=GMM_COMPONENTS_DEFAULT, step=1, title="GMM components", width=250)
     nd.method_select = Select(value="kde", options=DENSITY_METHODS, title="Fit method", width=140)
 
@@ -546,7 +547,9 @@ def make_p_node(initial_events, depth):
     nd.derive_btn.on_click(busy(on_derive))
 
     derive_row = Row(nd.derive_btn, nd.gang_checkbox, nd.kl_div_display)
-    nd.layout = Column(_param_row(nd), nd.figure, Row(nd.y_scale_toggle), derive_row)
+    nd.bin_width_panel = Column(nd.bin_width_slider)
+    nd.layout = Column(_param_row(nd), Row(nd.figure, Spacer(width=20), nd.bin_width_panel),
+                        Row(nd.y_scale_toggle), derive_row)
 
     return nd
 
