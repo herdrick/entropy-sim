@@ -610,7 +610,8 @@ def _param_row(nd):
 
 
 def make_node(initial_events, alpha_end=5, x_range=(X_MIN, X_MAX), x_label="Value",
-              mu_range=(-10, 10), sigma_range=(0.1, 20), title="P1  |  entropy = 0.0000 bits"):
+              mu_range=(-10, 10), sigma_range=(0.1, 20), title="P1  |  entropy = 0.0000 bits",
+              show_bin_width=True):
     n = PNode()
     n.events = initial_events
     n.grid = VALUE_GRID
@@ -621,7 +622,8 @@ def make_node(initial_events, alpha_end=5, x_range=(X_MIN, X_MAX), x_label="Valu
     n.prior_mu_slider = Slider(start=mu_range[0], end=mu_range[1], value=PRIOR_MU_DEFAULT, step=0.1, title="Prior mean μ", width=250)
     n.prior_sigma_slider = Slider(start=sigma_range[0], end=sigma_range[1], value=PRIOR_SIGMA_DEFAULT, step=0.1, title="Prior std dev σ", width=250)
     n.bandwidth_slider = Slider(start=0.1, end=3.0, value=BANDWIDTH_DEFAULT, step=0.05, title="Bandwidth / smoothing factor", width=250)
-    n.bin_width_slider = Slider(start=0.01, end=5.0, value=BIN_WIDTH_DEFAULT, step=0.01, title="Bin width Δx", width=250)
+    if show_bin_width:
+        n.bin_width_slider = Slider(start=0.01, end=5.0, value=BIN_WIDTH_DEFAULT, step=0.01, title="Bin width Δx", width=250)
     n.n_components_slider = Slider(start=1, end=GMM_COMPONENTS_MAX, value=GMM_COMPONENTS_DEFAULT, step=1, title="GMM components", width=250)
     n.method_select = Select(value="kde", options=DENSITY_METHODS, title="Fit method", width=140)
     n.y_scale_toggle = Select(value="adaptive",
@@ -639,16 +641,23 @@ def make_node(initial_events, alpha_end=5, x_range=(X_MIN, X_MAX), x_label="Valu
         nd.y_range_adaptive = (new == "adaptive")
         recompute()
 
-    for s in (n.prior_alpha_slider, n.prior_mu_slider, n.prior_sigma_slider,
-              n.bandwidth_slider, n.bin_width_slider, n.n_components_slider):
+    sliders = [n.prior_alpha_slider, n.prior_mu_slider, n.prior_sigma_slider,
+               n.bandwidth_slider, n.n_components_slider]
+    if show_bin_width:
+        sliders.append(n.bin_width_slider)
+    for s in sliders:
         s.on_change("value", on_param_change)
     n.method_select.on_change("value", on_method_change)
     n.y_scale_toggle.on_change("value", on_y_scale_toggle)
 
-    n.bin_width_panel = Column(n.bin_width_slider)
+    if show_bin_width:
+        n.bin_width_panel = Column(n.bin_width_slider)
+        plot_row = Row(n.figure, Spacer(width=20), n.bin_width_panel)
+    else:
+        plot_row = Row(n.figure)
     n.layout = Column(
         _param_row(n),
-        Row(n.figure, Spacer(width=20), n.bin_width_panel),
+        plot_row,
         Row(n.y_scale_toggle),
     )
     return n
@@ -878,7 +887,7 @@ node = make_node(root_events.copy(), alpha_end=5, x_range=(X_MIN, X_MAX), x_labe
                  title="P1  |  entropy = 0.0000 bits")
 surp_node = make_node(np.array([], dtype=float), alpha_end=5, x_range=(S_MIN, S_MAX),
                       x_label="Surprisal (bits)", mu_range=(0, 20), sigma_range=(0.1, 10),
-                      title="S(P1) — First Surprisal Distribution")
+                      title="S(P1) — First Surprisal Distribution", show_bin_width=False)
 
 recompute()
 
