@@ -3,7 +3,8 @@
 Each node fits a continuous density to its events via a Gaussian-KDE blended
 with a Gaussian(mu, sigma) prior (blend weight n/(n+alpha)), instead of a
 histogram over user-chosen bin edges. Deriving a child node computes
-S(x) = -log2(density(x)) directly at each event -- no bin lookup needed.
+S(x) = -log2(density(x) * dx) at each event, where dx is a user-adjustable
+bin width (defaults to 1) standing in for an actual bin lookup.
 
 Domain note: the root node (P1) lives in "value" units; every derived node
 from then on lives in "bits" units (S(P1), S(S(P1)), ... are all self-information
@@ -39,6 +40,7 @@ PRIOR_ALPHA_DEFAULT = 0
 PRIOR_MU_DEFAULT = 0
 PRIOR_SIGMA_DEFAULT = 5
 BANDWIDTH_DEFAULT = 1.0
+BIN_WIDTH_DEFAULT = 1.0
 GMM_COMPONENTS_DEFAULT = 2
 GMM_COMPONENTS_MAX = 8
 ADAPTIVE_KDE_SENSITIVITY = 0.5  # exponent on local/global density ratio -> bandwidth scaling
@@ -114,6 +116,7 @@ class PNode:
     prior_mu_slider: Slider = None
     prior_sigma_slider: Slider = None
     bandwidth_slider: Slider = None
+    bin_width_slider: Slider = None
     method_select: Select = None
     n_components_slider: Slider = None
     y_scale_toggle: Select = None
@@ -251,25 +254,27 @@ def make_density_fn(events, alpha, mu, sigma, method, bw_factor, n_components) -
     return lambda x: w * raw_pdf(x) + (1 - w) * prior_pdf(x)
 
 
-def surprisal_bits(x, density_fn):
-    # This treats density(x) directly as if it were a probability -- there's no
-    # bin lookup / bin width anywhere. That's the differential-entropy
-    # convention (matches differential_entropy_bits below, -int p*log2(p) dx),
-    # not the discrete-Shannon one, and it comes with real caveats:
+def surprisal_bits(x, density_fn, dx=1.0):
+    # A true discretized surprisal is S = -log2(P) where P ~= density(x) * dx
+    # for some bin width dx -- density alone is a density, not a probability.
+    # dx defaults to 1 (in whatever units x is in), so the bin-width slider at
+    # dx=1 reproduces the old no-bin-width behavior exactly; moving it just
+    # adds a constant -log2(dx) shift to every event's surprisal (bigger bins
+    # -> more probability mass per bin -> lower surprisal).
     #
-    # - A true discretized surprisal would be S = -log2(P) where
-    #   P ~= density(x) * dx for some bin width dx. Using density(x) alone is
-    #   equivalent to silently fixing dx = 1 in whatever units x is in.
-    # - Not scale-invariant: rescale x (e.g. events *= 10) and density scales
-    #   by 1/10, shifting every surprisal value by a constant log2(10) bits.
-    #   Absolute numbers only mean something relative to x's units; comparisons
-    #   *within* one density_fn are still meaningful.
-    # - density(x) can exceed 1 (e.g. a narrow Gaussian), so surprisal can go
-    #   negative -- unlike discrete Shannon surprisal, which is always >= 0.
-    # - Strictly speaking, a continuous RV has P(X=x) = 0 at any single point,
-    #   so there's no well-defined "information content of this exact event";
-    #   this is a differential-entropy analogue, not that quantity.
-    p = np.clip(density_fn(x), 1e-300, None)
+    # That constant shift is also why this quantity isn't scale-invariant on
+    # its own: rescaling x rescales density inversely, which the dx slider can
+    # compensate for but doesn't have to, since comparisons *within* one
+    # density_fn at a fixed dx are meaningful regardless.
+    #
+    # Remaining caveats even with dx set "correctly":
+    # - density(x) * dx can still exceed 1 (e.g. a narrow Gaussian with a wide
+    #   bin), so surprisal can go negative -- unlike discrete Shannon
+    #   surprisal, which is always >= 0.
+    # - Strictly speaking, a continuous RV has P(X=x) = 0 at any single point;
+    #   density(x) * dx is only an approximation of the probability mass in a
+    #   bin of width dx centered at x, not an exact one.
+    p = np.clip(density_fn(x) * dx, 1e-300, None)
     return -np.log2(p)
 
 
@@ -304,7 +309,7 @@ def _param_row(nd):
     """Only show the slider(s) relevant to the currently-selected fit method:
     bandwidth for the two KDE variants, component count for GMM."""
     children = [nd.prior_alpha_slider, Spacer(width=20), nd.prior_mu_slider, Spacer(width=20),
-                nd.prior_sigma_slider]
+                nd.prior_sigma_slider, Spacer(width=20), nd.bin_width_slider]
     if nd.method_select.value in ("kde", "adaptive_kde", "bspline"):
         children += [Spacer(width=20), nd.bandwidth_slider]
     if nd.method_select.value == "gmm":
@@ -318,7 +323,7 @@ def rebuild_grid():
     for nd in _all_nodes:
         nd.figure.width = PLOT_WIDTH
         for s in (nd.prior_alpha_slider, nd.prior_mu_slider, nd.prior_sigma_slider,
-                  nd.bandwidth_slider, nd.n_components_slider):
+                  nd.bandwidth_slider, nd.bin_width_slider, nd.n_components_slider):
             s.width = 250
         nd.layout.children[0] = _param_row(nd)
         nd.layout.children[1] = nd.figure
@@ -344,6 +349,7 @@ def propagate_params_down(nd):
     child.prior_mu_slider.value = nd.prior_mu_slider.value
     child.prior_sigma_slider.value = nd.prior_sigma_slider.value
     child.bandwidth_slider.value = nd.bandwidth_slider.value
+    child.bin_width_slider.value = nd.bin_width_slider.value
     child.n_components_slider.value = nd.n_components_slider.value
     child.method_select.value = nd.method_select.value
     recompute_from(child)
@@ -373,7 +379,7 @@ def recompute_from(nd):
     nd.rug_source.data = dict(x=nd.events, y0=np.zeros(len(nd.events)), y1=np.full(len(nd.events), rug_h))
 
     if nd.child is not None:
-        nd.child.events = surprisal_bits(nd.events, density_fn)
+        nd.child.events = surprisal_bits(nd.events, density_fn, nd.bin_width_slider.value)
         recompute_from(nd.child)
 
     refresh_kl_display(nd)
@@ -499,6 +505,7 @@ def make_p_node(initial_events, depth):
     nd.prior_mu_slider = Slider(start=mu_range[0], end=mu_range[1], value=PRIOR_MU_DEFAULT, step=0.1, title="Prior mean μ", width=250)
     nd.prior_sigma_slider = Slider(start=sigma_range[0], end=sigma_range[1], value=PRIOR_SIGMA_DEFAULT, step=0.1, title="Prior std dev σ", width=250)
     nd.bandwidth_slider = Slider(start=0.1, end=3.0, value=BANDWIDTH_DEFAULT, step=0.05, title="Bandwidth / smoothing factor", width=250)
+    nd.bin_width_slider = Slider(start=0.01, end=5.0, value=BIN_WIDTH_DEFAULT, step=0.01, title="Bin width Δx (for child's surprisal)", width=250)
     nd.n_components_slider = Slider(start=1, end=GMM_COMPONENTS_MAX, value=GMM_COMPONENTS_DEFAULT, step=1, title="GMM components", width=250)
     nd.method_select = Select(value="kde", options=DENSITY_METHODS, title="Fit method", width=140)
 
@@ -531,7 +538,7 @@ def make_p_node(initial_events, depth):
         create_child_node(n)
 
     for s in (nd.prior_alpha_slider, nd.prior_mu_slider, nd.prior_sigma_slider,
-              nd.bandwidth_slider, nd.n_components_slider):
+              nd.bandwidth_slider, nd.bin_width_slider, nd.n_components_slider):
         s.on_change("value", on_param_change)
     nd.method_select.on_change("value", on_method_change)
     nd.y_scale_toggle.on_change("value", on_y_scale_toggle)
@@ -554,7 +561,7 @@ def create_child_node(parent_node):
         bw = parent_node.bandwidth_slider.value
         density_fn = make_density_fn(parent_node.events, alpha, mu, sigma,
                                       parent_node.method_select.value, bw, parent_node.n_components_slider.value)
-        child_events = surprisal_bits(parent_node.events, density_fn)
+        child_events = surprisal_bits(parent_node.events, density_fn, parent_node.bin_width_slider.value)
         depth = parent_node.depth + 1
     else:
         child_events = root_events.copy()

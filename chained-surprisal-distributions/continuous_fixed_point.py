@@ -3,9 +3,10 @@
 Instead of binning events into a histogram, each node fits a continuous
 density via a Gaussian-KDE blended with a Gaussian(mu, sigma) prior
 (blend weight n/(n+alpha), the continuous analogue of additive/pseudocount
-smoothing). Surprisal S(x) = -log2(density(x)) is evaluated directly at
-each event -- no bin lookup needed -- and the fixed-point iteration repeats
-that transform + refit until the density stops changing on a fixed grid.
+smoothing). Surprisal S(x) = -log2(density(x) * dx) is evaluated directly at
+each event, where dx is a user-adjustable bin width (defaults to 1) standing
+in for an actual bin lookup, and the fixed-point iteration repeats that
+transform + refit until the density stops changing on a fixed grid.
 
 The four bin-simplex viz panels (simplex3d, radial, scatter matrix, parallel
 coords) from fixed_point.py have no continuous analogue (they plot vectors
@@ -33,6 +34,7 @@ PRIOR_ALPHA_DEFAULT = 0
 PRIOR_MU_DEFAULT = 0
 PRIOR_SIGMA_DEFAULT = 5
 BANDWIDTH_DEFAULT = 1.0
+BIN_WIDTH_DEFAULT = 1.0
 GMM_COMPONENTS_DEFAULT = 2
 GMM_COMPONENTS_MAX = 8
 ADAPTIVE_KDE_SENSITIVITY = 0.5  # exponent on local/global density ratio -> bandwidth scaling
@@ -178,25 +180,27 @@ def make_density_fn(events, alpha, mu, sigma, method, bw_factor, n_components) -
     return lambda x: w * raw_pdf(x) + (1 - w) * prior_pdf(x)
 
 
-def surprisal_bits(x, density_fn):
-    # This treats density(x) directly as if it were a probability -- there's no
-    # bin lookup / bin width anywhere. That's the differential-entropy
-    # convention (matches differential_entropy_bits below, -int p*log2(p) dx),
-    # not the discrete-Shannon one, and it comes with real caveats:
+def surprisal_bits(x, density_fn, dx=1.0):
+    # A true discretized surprisal is S = -log2(P) where P ~= density(x) * dx
+    # for some bin width dx -- density alone is a density, not a probability.
+    # dx defaults to 1 (in whatever units x is in), so the bin-width slider at
+    # dx=1 reproduces the old no-bin-width behavior exactly; moving it just
+    # adds a constant -log2(dx) shift to every event's surprisal (bigger bins
+    # -> more probability mass per bin -> lower surprisal).
     #
-    # - A true discretized surprisal would be S = -log2(P) where
-    #   P ~= density(x) * dx for some bin width dx. Using density(x) alone is
-    #   equivalent to silently fixing dx = 1 in whatever units x is in.
-    # - Not scale-invariant: rescale x (e.g. events *= 10) and density scales
-    #   by 1/10, shifting every surprisal value by a constant log2(10) bits.
-    #   Absolute numbers only mean something relative to x's units; comparisons
-    #   *within* one density_fn are still meaningful.
-    # - density(x) can exceed 1 (e.g. a narrow Gaussian), so surprisal can go
-    #   negative -- unlike discrete Shannon surprisal, which is always >= 0.
-    # - Strictly speaking, a continuous RV has P(X=x) = 0 at any single point,
-    #   so there's no well-defined "information content of this exact event";
-    #   this is a differential-entropy analogue, not that quantity.
-    p = np.clip(density_fn(x), 1e-300, None)
+    # That constant shift is also why this quantity isn't scale-invariant on
+    # its own: rescaling x rescales density inversely, which the dx slider can
+    # compensate for but doesn't have to, since comparisons *within* one
+    # density_fn at a fixed dx are meaningful regardless.
+    #
+    # Remaining caveats even with dx set "correctly":
+    # - density(x) * dx can still exceed 1 (e.g. a narrow Gaussian with a wide
+    #   bin), so surprisal can go negative -- unlike discrete Shannon
+    #   surprisal, which is always >= 0.
+    # - Strictly speaking, a continuous RV has P(X=x) = 0 at any single point;
+    #   density(x) * dx is only an approximation of the probability mass in a
+    #   bin of width dx centered at x, not an exact one.
+    p = np.clip(density_fn(x) * dx, 1e-300, None)
     return -np.log2(p)
 
 
@@ -227,7 +231,7 @@ def wasserstein_distance(p_fn, q_fn, grid):
     return float(np.trapezoid(np.abs(F_p - F_q), grid))
 
 
-def compute_fixed_point_iterations(events, alpha, mu, sigma, method, bw_factor, n_components, tol):
+def compute_fixed_point_iterations(events, alpha, mu, sigma, method, bw_factor, n_components, tol, dx=1.0):
     """Return (n_iter, final_density_fn, final_events, history) or all-None if no
     convergence.
 
@@ -248,11 +252,11 @@ def compute_fixed_point_iterations(events, alpha, mu, sigma, method, bw_factor, 
     if len(events) == 0:
         return None, None, None, None
     p1_density = make_density_fn(events, alpha, mu, sigma, method, bw_factor, n_components)
-    current_events = surprisal_bits(events, p1_density)
+    current_events = surprisal_bits(events, p1_density, dx)
     density = make_density_fn(current_events, alpha, mu, sigma, method, bw_factor, n_components)
     history = []
     for i in range(MAX_ITER):
-        new_events = surprisal_bits(current_events, density)
+        new_events = surprisal_bits(current_events, density, dx)
         new_density = make_density_fn(new_events, alpha, mu, sigma, method, bw_factor, n_components)
         w1 = wasserstein_distance(density, new_density, SURP_GRID)
         history.append((
@@ -278,6 +282,7 @@ class PNode:
     prior_mu_slider: Slider = None
     prior_sigma_slider: Slider = None
     bandwidth_slider: Slider = None
+    bin_width_slider: Slider = None
     method_select: Select = None
     n_components_slider: Slider = None
     y_scale_toggle: Select = None
@@ -488,7 +493,7 @@ def _update_surp_node():
         _update_curve(surp_node, empty_density, SURP_GRID)
         surp_node.figure.title.text = "S(P1) — First Surprisal Distribution"
         return
-    surp_events = surprisal_bits(node.events, node.current_density)
+    surp_events = surprisal_bits(node.events, node.current_density, node.bin_width_slider.value)
     surp_node.events = surp_events
     alpha = surp_node.prior_alpha_slider.value
     mu = surp_node.prior_mu_slider.value
@@ -520,7 +525,8 @@ def recompute():
     _update_surp_node()
 
     n_iter, fixed_density, fixed_events, history = compute_fixed_point_iterations(
-        node.events, alpha, mu, sigma, method, bw, n_components, tol=10 ** tol_slider.value)
+        node.events, alpha, mu, sigma, method, bw, n_components, tol=10 ** tol_slider.value,
+        dx=node.bin_width_slider.value)
     if n_iter is None and len(node.events) == 0:
         convergence_div.text = "<i>Add events to compute fixed-point iterations.</i>"
         _update_progression_plot(None)
@@ -593,7 +599,7 @@ def _param_row(nd):
     """Only show the slider(s) relevant to the currently-selected fit method:
     bandwidth for the two KDE variants, component count for GMM."""
     children = [nd.prior_alpha_slider, Spacer(width=20), nd.prior_mu_slider, Spacer(width=20),
-                nd.prior_sigma_slider]
+                nd.prior_sigma_slider, Spacer(width=20), nd.bin_width_slider]
     if nd.method_select.value in ("kde", "adaptive_kde", "bspline"):
         children += [Spacer(width=20), nd.bandwidth_slider]
     if nd.method_select.value == "gmm":
@@ -614,6 +620,7 @@ def make_node(initial_events, alpha_end=5, x_range=(X_MIN, X_MAX), x_label="Valu
     n.prior_mu_slider = Slider(start=mu_range[0], end=mu_range[1], value=PRIOR_MU_DEFAULT, step=0.1, title="Prior mean μ", width=250)
     n.prior_sigma_slider = Slider(start=sigma_range[0], end=sigma_range[1], value=PRIOR_SIGMA_DEFAULT, step=0.1, title="Prior std dev σ", width=250)
     n.bandwidth_slider = Slider(start=0.1, end=3.0, value=BANDWIDTH_DEFAULT, step=0.05, title="Bandwidth / smoothing factor", width=250)
+    n.bin_width_slider = Slider(start=0.01, end=5.0, value=BIN_WIDTH_DEFAULT, step=0.01, title="Bin width Δx (for surprisal)", width=250)
     n.n_components_slider = Slider(start=1, end=GMM_COMPONENTS_MAX, value=GMM_COMPONENTS_DEFAULT, step=1, title="GMM components", width=250)
     n.method_select = Select(value="kde", options=DENSITY_METHODS, title="Fit method", width=140)
     n.y_scale_toggle = Select(value="adaptive",
@@ -632,7 +639,7 @@ def make_node(initial_events, alpha_end=5, x_range=(X_MIN, X_MAX), x_label="Valu
         recompute()
 
     for s in (n.prior_alpha_slider, n.prior_mu_slider, n.prior_sigma_slider,
-              n.bandwidth_slider, n.n_components_slider):
+              n.bandwidth_slider, n.bin_width_slider, n.n_components_slider):
         s.on_change("value", on_param_change)
     n.method_select.on_change("value", on_method_change)
     n.y_scale_toggle.on_change("value", on_y_scale_toggle)
