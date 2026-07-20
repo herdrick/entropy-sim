@@ -342,17 +342,30 @@ def rebuild_grid():
 
 # ── Core recomputation ───────────────────────────────────────────────────────
 
+# Setting a Bokeh widget's .value fires its on_change callback just like a user
+# edit would, so writing all of a descendant's sliders in propagate_params_down
+# would otherwise trigger that descendant's own recompute (and, if it also
+# propagates, further writes) once per slider on top of the explicit recompute
+# below. This flag lets those callbacks no-op while propagation is in progress.
+_suspend_recompute = [False]
+
+
 def propagate_params_down(nd):
     child = nd.child
     if child is None:
         return
-    child.prior_alpha_slider.value = nd.prior_alpha_slider.value
-    child.prior_mu_slider.value = nd.prior_mu_slider.value
-    child.prior_sigma_slider.value = nd.prior_sigma_slider.value
-    child.bandwidth_slider.value = nd.bandwidth_slider.value
-    child.bin_width_slider.value = nd.bin_width_slider.value
-    child.n_components_slider.value = nd.n_components_slider.value
-    child.method_select.value = nd.method_select.value
+    _suspend_recompute[0] = True
+    try:
+        child.prior_alpha_slider.value = nd.prior_alpha_slider.value
+        child.prior_mu_slider.value = nd.prior_mu_slider.value
+        child.prior_sigma_slider.value = nd.prior_sigma_slider.value
+        child.bandwidth_slider.value = nd.bandwidth_slider.value
+        child.bin_width_slider.value = nd.bin_width_slider.value
+        child.n_components_slider.value = nd.n_components_slider.value
+        child.method_select.value = nd.method_select.value
+    finally:
+        _suspend_recompute[0] = False
+    child.layout.children[0] = _param_row(child)
     recompute_from(child)
     propagate_params_down(child)
 
@@ -514,12 +527,16 @@ def make_p_node(initial_events, depth):
     nd.kl_div_display = Div(text="", styles={"line-height": "2.2", "margin-left": "10px", "font-size": "13px"})
 
     def on_param_change(attr, old, new, n=nd):
+        if _suspend_recompute[0]:
+            return
         recompute_from(n)
         if n.propagates:
             propagate_params_down(n)
         refresh_trace_display()
 
     def on_method_change(attr, old, new, n=nd):
+        if _suspend_recompute[0]:
+            return
         n.layout.children[0] = _param_row(n)
         recompute_from(n)
         if n.propagates:
@@ -540,8 +557,8 @@ def make_p_node(initial_events, depth):
 
     for s in (nd.prior_alpha_slider, nd.prior_mu_slider, nd.prior_sigma_slider,
               nd.bandwidth_slider, nd.bin_width_slider, nd.n_components_slider):
-        s.on_change("value", on_param_change)
-    nd.method_select.on_change("value", on_method_change)
+        s.on_change("value", busy_change(on_param_change))
+    nd.method_select.on_change("value", busy_change(on_method_change))
     nd.y_scale_toggle.on_change("value", on_y_scale_toggle)
     nd.gang_checkbox.on_change("active", on_propagate_change)
     nd.derive_btn.on_click(busy(on_derive))
