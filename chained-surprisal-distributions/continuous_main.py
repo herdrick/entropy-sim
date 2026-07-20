@@ -69,6 +69,13 @@ TRACE_PALETTE = ["#E24A33", "#348ABD", "#988ED5", "#777777", "#FBC15E", "#8EBA42
 # so to actually *see* "Working…" while a slow recomputation runs, the work
 # has to be deferred to the next tick: show the indicator now, run the real
 # callback body on the next tick, then clear it.
+#
+# Profiling a 10-node chain showed each property set on a widget attached to
+# the document (e.g. every slider write in propagate_params_down) walks the
+# *entire* document model graph to recompute Bokeh's reachable-models set --
+# ~1.2s of a ~2.1s propagation was that walk alone, repeated once per write.
+# document.models.freeze() defers that walk until the whole callback body is
+# done, collapsing many walks into one.
 busy_div = Div(text="⏳ Working…", visible=False, styles={
     "position": "fixed", "top": "12px", "left": "50%", "transform": "translateX(-50%)",
     "z-index": "9999", "background": "#fff7ed", "border": "1px solid #b45309",
@@ -83,7 +90,8 @@ def busy(fn):
 
         def run():
             try:
-                fn()
+                with curdoc().models.freeze():
+                    fn()
             finally:
                 busy_div.visible = False
         curdoc().add_next_tick_callback(run)
@@ -96,7 +104,8 @@ def busy_change(fn):
 
         def run():
             try:
-                fn(attr, old, new)
+                with curdoc().models.freeze():
+                    fn(attr, old, new)
             finally:
                 busy_div.visible = False
         curdoc().add_next_tick_callback(run)
@@ -351,6 +360,13 @@ _suspend_recompute = [False]
 
 
 def propagate_params_down(nd):
+    """Sync every descendant's widgets to nd's values, without recomputing:
+    recompute_from(nd) already recurses into nd.child on its own (to refit
+    each node's density and re-derive its child's events), so if this also
+    called recompute_from(child) at each level, that recursion would refit
+    every node below it once per level -- O(n^2) refits for a chain of n
+    propagating nodes. Callers must call recompute_from(nd) once themselves
+    *after* this returns, so the single recursive cascade sees synced params."""
     child = nd.child
     if child is None:
         return
@@ -366,7 +382,6 @@ def propagate_params_down(nd):
     finally:
         _suspend_recompute[0] = False
     child.layout.children[0] = _param_row(child)
-    recompute_from(child)
     propagate_params_down(child)
 
 
@@ -529,18 +544,18 @@ def make_p_node(initial_events, depth):
     def on_param_change(attr, old, new, n=nd):
         if _suspend_recompute[0]:
             return
-        recompute_from(n)
         if n.propagates:
             propagate_params_down(n)
+        recompute_from(n)
         refresh_trace_display()
 
     def on_method_change(attr, old, new, n=nd):
         if _suspend_recompute[0]:
             return
         n.layout.children[0] = _param_row(n)
-        recompute_from(n)
         if n.propagates:
             propagate_params_down(n)
+        recompute_from(n)
         refresh_trace_display()
 
     def on_y_scale_toggle(attr, old, new, n=nd):
@@ -551,6 +566,8 @@ def make_p_node(initial_events, depth):
         n.propagates = 0 in new
         if n.propagates:
             propagate_params_down(n)
+            recompute_from(n)
+            refresh_trace_display()
 
     def on_derive(n=nd):
         create_child_node(n)
