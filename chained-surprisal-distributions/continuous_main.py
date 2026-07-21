@@ -581,9 +581,14 @@ def make_p_node(initial_events, depth):
     def on_derive(n=nd):
         create_child_node(n)
 
+    # value_throttled only fires on mouse-up (or drag-end), not on every
+    # intermediate position during a drag -- with "value" instead, dragging
+    # queues one full recompute per pixel of motion, and since each recompute
+    # touches every descendant node, those queue up faster than they can run
+    # and the UI lags far behind the handle for the whole backlog to drain.
     for s in (nd.prior_alpha_slider, nd.prior_mu_slider, nd.prior_sigma_slider,
               nd.bandwidth_slider, nd.bin_width_slider, nd.n_components_slider):
-        s.on_change("value", busy_change(on_param_change))
+        s.on_change("value_throttled", busy_change(on_param_change))
     nd.method_select.on_change("value", busy_change(on_method_change))
     nd.y_scale_toggle.on_change("value", on_y_scale_toggle)
     nd.gang_checkbox.on_change("active", on_propagate_change)
