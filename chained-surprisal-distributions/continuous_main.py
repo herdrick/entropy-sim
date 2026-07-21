@@ -435,8 +435,6 @@ def refresh_kl_display(nd):
     apply when the parent is itself bits-domain (depth >= 2); comparisons to
     a child always apply once this node is itself bits-domain (depth >= 1),
     since a bits-domain node's child is automatically bits-domain too."""
-    if nd.kl_div_display is None or nd.current_density is None:
-        return
     lines = []
     if nd.depth >= 2 and nd.parent is not None and nd.parent.current_density is not None:
         kl_up = kl_divergence_bits(nd.current_density, nd.parent.current_density, SURP_GRID)

@@ -260,8 +260,6 @@ def _get_active_bins():
 
 def _refresh_viz_panels():
     """Update all 4 viz panels with current data."""
-    if _simplex3d_state is None:
-        return
     if _locked_bins_state and '_refresh_status' in _locked_bins_state:
         _locked_bins_state['_refresh_status']()
     indices, labels = _get_active_bins()
