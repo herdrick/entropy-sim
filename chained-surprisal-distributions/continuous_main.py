@@ -100,6 +100,15 @@ def busy(fn):
 
 def busy_change(fn):
     def wrapped(attr, old, new):
+        # Widget writes inside propagate_params_down set _suspend_recompute
+        # around the assignment, but the on_change this triggers is deferred
+        # to the next tick below -- by the time that deferred body runs, the
+        # flag is already back to False. Checking it here, before scheduling
+        # the deferred callback at all, is what actually makes the suspend
+        # take effect: otherwise every synced descendant widget queues its
+        # own spurious recompute, cascading further from wherever it sits.
+        if _suspend_recompute[0]:
+            return
         busy_div.visible = True
 
         def run():
