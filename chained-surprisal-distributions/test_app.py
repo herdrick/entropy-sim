@@ -19,7 +19,7 @@ import os
 import pytest
 
 PORT = 5007  # avoid colliding with a dev server on 5006
-URL = f"http://localhost:{PORT}/foo"
+URL = f"http://localhost:{PORT}/main"
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -38,7 +38,7 @@ def _find_bokeh():
 @pytest.fixture(scope="session")
 def bokeh_server():
     """Start a bokeh server for the test session and tear it down after."""
-    cmd = _find_bokeh() + ["serve", "foo.py", "--port", str(PORT)]
+    cmd = _find_bokeh() + ["serve", "main.py", "--port", str(PORT)]
     proc = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
