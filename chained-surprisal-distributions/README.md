@@ -75,11 +75,13 @@ No API keys or external accounts are required.
 
 ## Running the App
 
-The four apps are served together as one Bokeh multi-app server:
+The four apps are served together as one Bokeh multi-app server. Run it under `entr` so the server automatically restarts whenever any `.py` file in the directory changes:
 
 ```bash
-bokeh serve main.py fixed_point.py continuous_main.py continuous_fixed_point.py
+find . | grep \.py$ | entr -r bokeh serve iterated_surprisal_distributions.py find_fixed_point.py continuous_iterated_surprisal_distributions.py continuous_find_fixed_point.py
 ```
+
+`find . | grep \.py$` lists every `.py` file in the directory, and pipes that list into `entr`, which watches those files and reruns the given command each time one of them changes. The `-r` flag tells `entr` to restart the command (rather than just rerun it) on each change, which is what you want for a long-running server — it kills the old `bokeh serve` process and starts a fresh one, so edits to any app's code take effect without you having to stop and restart the server by hand.
 
 Bokeh will print four URLs to the terminal:
 
