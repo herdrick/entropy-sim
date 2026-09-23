@@ -1,3 +1,5 @@
+*this README is mostly hand-written by a human*
+
 # Entropy & Surprisal Explorer
 
 This was made to explore the idea that the surprisal of an event is itself an event. The probability distribution of those surprisal events can itself be used as another model under which you can calculate surprisals of events. So, you can chain together such distributions and pass batches of events into the top of that chain, and get distributions of surprisals based on distributions of surprisals, and so on. You can play with that directly with iterated_surprisal_distributions.py.  
@@ -8,25 +10,8 @@ There are continuous-space version of those two, but the results you get are jus
 
 ## Installation
 
-### 1. Navigate to the directory
-
-```bash
-cd chained-surprisal-distributions
-```
-
-### 2. Create and activate a virtual environment (recommended)
-
-```bash
-python -m venv .venv
-source .venv/bin/activate   # macOS / Linux
-# .venv\Scripts\activate    # Windows
-```
-
-### 3. Install Python dependencies
-
 ```bash
 pip install -r requirements.txt
-pip install matplotlib   # needed by find_fixed_point.py; not in requirements.txt
 ```
 
 ## Running the App
@@ -45,7 +30,7 @@ find . | grep \.py$ | entr -r bokeh serve iterated_surprisal_distributions.py fi
 
 ## Running the Tests
 
-`test_app.py` is a `pytest` + Playwright. 
+`test_app.py` uses `pytest` + Playwright. 
 
 ```bash
 pip install pytest-playwright
