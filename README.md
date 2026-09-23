@@ -21,6 +21,6 @@ Web version.
 
 ### [chained-surprisal-distributions/](./chained-surprisal-distributions/README.md) — Entropy & surprisal explorer
 
-A browser-based [Bokeh](https://bokeh.org) server app for building probability distributions from scratch. Generate events, bin them however you like by adding bin edges, and watch Shannon entropy update in the chart title with each change. Outermost bins extend to infinity; empty bins receive Laplace smoothing so the distribution is always well-defined.
+Made to explore the idea that the surprisal of an event is itself an event.
 
 **Stack:** Python, numpy, scipy, [Bokeh](https://bokeh.org) (browser UI); Playwright (optional tests)
