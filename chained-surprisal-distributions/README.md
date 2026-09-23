@@ -45,29 +45,11 @@ find . | grep \.py$ | entr -r bokeh serve iterated_surprisal_distributions.py fi
 
 ## Running the Tests
 
-`test_app.py` is a `pytest` + Playwright end-to-end suite (it launches its own Bokeh server subprocess on port 5007 and drives it with a real browser).
+`test_app.py` is a `pytest` + Playwright. 
 
 ```bash
 pip install pytest-playwright
 playwright install chromium
 pytest test_app.py            # headless
 pytest test_app.py --headed   # watch in a real browser
-```
-
-## Project Structure
-
-```
-chained-surprisal-distributions/
-├── iterated_surprisal_distributions.py            # Discrete explorer app (/iterated_surprisal_distributions)
-├── find_fixed_point.py                            # Discrete fixed-point app (/find_fixed_point)
-├── continuous_iterated_surprisal_distributions.py # Continuous (KDE) explorer app (/continuous_iterated_surprisal_distributions)
-├── continuous_find_fixed_point.py                 # Continuous (KDE) fixed-point app (/continuous_find_fixed_point)
-├── events.py                                      # Event-generation helper (distribution families/samplers)
-├── bin_selection.py                               # Bin-frequency tracker + "lock bins" UI (used by find_fixed_point.py)
-├── viz_simplex3d.py                               # 3D simplex viz panel (find_fixed_point.py only; needs matplotlib)
-├── viz_radial.py                                  # Radial/spoke viz panel (find_fixed_point.py only)
-├── viz_scatter_matrix.py                          # Scatter-plot-matrix viz panel (find_fixed_point.py only)
-├── viz_parallel_coords.py                         # Parallel-coordinates viz panel (find_fixed_point.py only)
-├── test_app.py                                    # Pytest + Playwright end-to-end tests
-└── requirements.txt                               # Python dependencies
 ```
