@@ -1,4 +1,4 @@
-"""Continuous (KDE-based) analogue of main.py.
+"""Continuous (KDE-based) analogue of iterated_surprisal_distributions.py.
 
 Each node fits a continuous density to its events via a Gaussian-KDE blended
 with a Gaussian(mu, sigma) prior (blend weight n/(n+alpha)), instead of a
@@ -15,7 +15,7 @@ and between a node and its child always (children of a bits-domain node are
 automatically bits-domain too). The root's comparison to its own child is
 skipped since value units and bits units aren't the same measure.
 
-The four bin-simplex viz panels from main.py's sibling fixed_point.py have no
+The four bin-simplex viz panels from iterated_surprisal_distributions.py's sibling find_fixed_point.py have no
 continuous analogue and aren't present here either.
 """
 import numpy as np
@@ -636,7 +636,7 @@ def create_child_node(parent_node):
     refresh_trace_display()
 
 
-# ── Top-level event controls (same as main.py) ────────────────────────────────
+# ── Top-level event controls (same as iterated_surprisal_distributions.py) ────────────────────────────────
 
 n_events_input = TextInput(value="100", title="", width=80)
 family_select = Select(value=ev.FAMILY_NAMES[0], options=ev.FAMILY_NAMES, width=150)

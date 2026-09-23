@@ -35,7 +35,7 @@ _transport_cb_guard: bool = False
 _step_cb_handle: list = [None]  # holds add_next_tick_callback handle during step-through animation
 
 
-# ── Helpers (same as main.py) ─────────────────────────────────────────────────
+# ── Helpers (same as iterated_surprisal_distributions.py) ─────────────────────────────────────────────────
 
 def bin_counts(edges, event_arr):
     n_bins = len(edges) - 1
@@ -653,7 +653,7 @@ def make_surp_node():
     return n
 
 
-# ── Top-level event controls (same as main.py) ────────────────────────────────
+# ── Top-level event controls (same as iterated_surprisal_distributions.py) ────────────────────────────────
 
 n_events_input       = TextInput(value="1000", title="", width=80)
 family_select        = Select(value=ev.FAMILY_NAMES[0], options=ev.FAMILY_NAMES, width=150)
