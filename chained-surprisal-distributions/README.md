@@ -6,7 +6,7 @@ This was made to explore the idea that the surprisal of an event is itself an ev
 
 Invariably a fixed point is found. (Why is obvious enough when you think about it.) You can explore that with find_fixed_point.py.
 
-There are continuous-space version of those two, but the results you get are just quirks in whatever density-fitting technique you use.
+There are continuous-space versions of both of these, but the phenomena you see are not very interesting -- they just quirks of whatever density-fitting technique you use.
 
 ## Installation
 
