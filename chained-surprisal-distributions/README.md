@@ -16,8 +16,6 @@ pip install -r requirements.txt
 
 ## Running the App
 
-The four apps are served together as one Bokeh multi-app server. 
-
 ```bash
 bokeh serve iterated_surprisal_distributions.py find_fixed_point.py continuous_iterated_surprisal_distributions.py continuous_find_fixed_point.py
 ```
