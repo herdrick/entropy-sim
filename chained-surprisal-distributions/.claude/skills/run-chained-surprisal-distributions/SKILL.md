@@ -6,7 +6,7 @@ description: Start the chained-surprisal-distributions Bokeh app and check it in
 Check if it's already running first (the user often keeps one up under `entr` for auto-reload):
 
 ```bash
-curl -sf http://localhost:5006/continuous_main >/dev/null && echo "already running"
+curl -sf http://localhost:5006/continuous_iterated_surprisal_distributions >/dev/null && echo "already running"
 ```
 
 If not, start it on a fresh random port:
@@ -15,14 +15,14 @@ If not, start it on a fresh random port:
 cd chained-surprisal-distributions
 source ~/miniconda3/etc/profile.d/conda.sh && conda activate bokeh-1
 PORT=$((5100 + RANDOM % 900))
-nohup bokeh serve main.py fixed_point.py continuous_main.py continuous_fixed_point.py --port $PORT \
+nohup bokeh serve iterated_surprisal_distributions.py find_fixed_point.py continuous_iterated_surprisal_distributions.py continuous_find_fixed_point.py --port $PORT \
   > /tmp/bokeh.stdout.txt 2> /tmp/bokeh.stderr.txt &
 echo $! > /tmp/bokeh.pid
-timeout 20 bash -c "until curl -sf http://localhost:$PORT/continuous_main >/dev/null; do sleep 0.5; done"
+timeout 20 bash -c "until curl -sf http://localhost:$PORT/continuous_iterated_surprisal_distributions >/dev/null; do sleep 0.5; done"
 ```
 
-Then use Playwright to hit `http://localhost:$PORT/continuous_main` (or `/main`, `/fixed_point`,
-`/continuous_fixed_point`) and click around to check your change. If using the `playwright` MCP
+Then use Playwright to hit `http://localhost:$PORT/continuous_iterated_surprisal_distributions` (or `/iterated_surprisal_distributions`, `/find_fixed_point`,
+`/continuous_find_fixed_point`) and click around to check your change. If using the `playwright` MCP
 server and you hit "Browser is already in use", add `--isolated` to its args in `~/.claude.json`
 so concurrent sessions don't share one on-disk browser profile.
 

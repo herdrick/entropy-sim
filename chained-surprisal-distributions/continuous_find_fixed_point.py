@@ -1,4 +1,4 @@
-"""Continuous (KDE-based) analogue of fixed_point.py.
+"""Continuous (KDE-based) analogue of find_fixed_point.py.
 
 Instead of binning events into a histogram, each node fits a continuous
 density via a Gaussian-KDE blended with a Gaussian(mu, sigma) prior
@@ -9,7 +9,7 @@ in for an actual bin lookup, and the fixed-point iteration repeats that
 transform + refit until the density stops changing on a fixed grid.
 
 The four bin-simplex viz panels (simplex3d, radial, scatter matrix, parallel
-coords) from fixed_point.py have no continuous analogue (they plot vectors
+coords) from find_fixed_point.py have no continuous analogue (they plot vectors
 of per-bin probabilities) and are intentionally dropped here.
 """
 import numpy as np
@@ -235,7 +235,7 @@ def compute_fixed_point_iterations(events, alpha, mu, sigma, method, bw_factor, 
     """Return (n_iter, final_density_fn, final_events, history) or all-None if no
     convergence.
 
-    Mirrors fixed_point.py's iteration: map events -> S(P1) samples, then
+    Mirrors find_fixed_point.py's iteration: map events -> S(P1) samples, then
     repeatedly re-transform through the current density and refit, until
     the distribution stops moving: the Wasserstein (W1) distance between
     P_i and P_i+1 drops below tol. W1 is used (rather than a
@@ -663,7 +663,7 @@ def make_node(initial_events, alpha_end=5, x_range=(X_MIN, X_MAX), x_label="Valu
     return n
 
 
-# ── Top-level event controls (same as fixed_point.py) ─────────────────────────
+# ── Top-level event controls (same as find_fixed_point.py) ─────────────────────────
 
 n_events_input = TextInput(value="1000", title="", width=80)
 family_select = Select(value=ev.FAMILY_NAMES[0], options=ev.FAMILY_NAMES, width=150)
