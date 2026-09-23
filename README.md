@@ -10,9 +10,9 @@ This repository contains three independent applications. See the README of each.
 
 ### [new-distribution-with-each-event/](./new-distribution-with-each-event/README.md) — Interactive entropy simulator
 
-A desktop GUI (matplotlib/TkAgg).
+Made to explore changes in surprisals and entropy as the distribution (under which the surprisals are calculated) changes. 
 
-**Stack:** Python, numpy, scipy, matplotlib
+**Stack:** Python, numpy, scipy, matplotlib/TkAgg
 
 #### [new-distribution-with-each-event/web/](./new-distribution-with-each-event/web/README.md) 
 Web version.
