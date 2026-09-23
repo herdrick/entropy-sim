@@ -83,30 +83,15 @@ find . | grep \.py$ | entr -r bokeh serve iterated_surprisal_distributions.py fi
 
 `find . | grep \.py$` lists every `.py` file in the directory, and pipes that list into `entr`, which watches those files and reruns the given command each time one of them changes. The `-r` flag tells `entr` to restart the command (rather than just rerun it) on each change, which is what you want for a long-running server — it kills the old `bokeh serve` process and starts a fresh one, so edits to any app's code take effect without you having to stop and restart the server by hand.
 
-Bokeh will print four URLs to the terminal:
-
-```
-http://localhost:5006/iterated_surprisal_distributions
-http://localhost:5006/find_fixed_point
-http://localhost:5006/continuous_iterated_surprisal_distributions
-http://localhost:5006/continuous_find_fixed_point
-```
-
-Open whichever one you want to explore — they run independently in the same server process.
-
 ## What to Expect
 
 When `/iterated_surprisal_distributions` or `/continuous_iterated_surprisal_distributions` loads you will see:
 
-1. An empty rug/event area at the top and a single P distribution (one infinite bin, entropy 0.0000 bits).
-2. Below that, event-generation controls (distribution family, parameters, Append/Replace, n=, Add events).
-
-A typical workflow on `/iterated_surprisal_distributions`:
-
-1. Pick a family (e.g. Normal) and click **Add events** to generate a batch of samples.
-2. Click **View derived distribution** to spawn a P node, then drag the **Split point** slider and click **Freeze edge** to add bin edges — the bar chart and entropy update immediately.
-3. Click **View derived distribution** again on that node to create a surprisal child, and repeat to build a chain. Watch the KL/W1 numbers between adjacent nodes.
-4. Hover over a bin to see the "trace" highlight flow up/down the chain.
+- An empty rug/event area at the top and a single P distribution (one infinite bin, entropy 0.0000 bits).
+- Below that, event-generation controls (distribution family, parameters, Append/Replace, n=, Add events).
+- Click **Add events** to generate a batch of samples.
+- Click **View derived distribution** to spawn a P node, then drag the **Split point** slider and click **Freeze edge** to add bin edges —the bar chart and entropy update immediately.
+- Click **View derived distribution** again on that node to create a surprisal child, and repeat to build a chain. 
 
 On `/find_fixed_point` or `/continuous_find_fixed_point`, just add events — the app automatically iterates and reports the number of iterations to convergence (or "did not converge") without any manual deriving.
 
