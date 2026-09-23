@@ -45,9 +45,7 @@ find . | grep \.py$ | entr -r bokeh serve iterated_surprisal_distributions.py fi
 
 ## Running the Tests
 
-`test_app.py` is a `pytest` + Playwright end-to-end suite (it launches its own Bokeh server subprocess and drives it with a real browser). **Note:** as of this writing it still references the app's old filename — it starts `bokeh serve foo.py` and requests `http://localhost:5007/foo` — so it will fail to launch until those references are updated to `iterated_surprisal_distributions.py` / `/iterated_surprisal_distributions`. There is no `tests/` directory or Playwright JS spec file in this project despite `playwright.config.js` and `package.json` existing; those currently point at the same stale `foo.py` name.
-
-Once the filename references are fixed, the intended usage is:
+`test_app.py` is a `pytest` + Playwright end-to-end suite (it launches its own Bokeh server subprocess on port 5007 and drives it with a real browser).
 
 ```bash
 pip install pytest-playwright
@@ -66,14 +64,10 @@ chained-surprisal-distributions/
 ├── continuous_find_fixed_point.py                 # Continuous (KDE) fixed-point app (/continuous_find_fixed_point)
 ├── events.py                                      # Event-generation helper (distribution families/samplers)
 ├── bin_selection.py                               # Bin-frequency tracker + "lock bins" UI (used by find_fixed_point.py)
-├── compare_fixed_points.py                        # Standalone script: do different starting distributions
-│                                                   #   converge to the same fixed point? (not a Bokeh app)
 ├── viz_simplex3d.py                               # 3D simplex viz panel (find_fixed_point.py only; needs matplotlib)
 ├── viz_radial.py                                  # Radial/spoke viz panel (find_fixed_point.py only)
 ├── viz_scatter_matrix.py                          # Scatter-plot-matrix viz panel (find_fixed_point.py only)
 ├── viz_parallel_coords.py                         # Parallel-coordinates viz panel (find_fixed_point.py only)
-├── test_app.py                                    # Pytest + Playwright end-to-end tests (see caveat above)
-├── requirements.txt                               # Python dependencies
-├── package.json                                   # Node dependency (Playwright), stale test config
-└── playwright.config.js                           # Playwright config, stale (still points at foo.py)
+├── test_app.py                                    # Pytest + Playwright end-to-end tests
+└── requirements.txt                               # Python dependencies
 ```
