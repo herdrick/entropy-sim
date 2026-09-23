@@ -129,26 +129,3 @@ chained-surprisal-distributions/
 ├── package.json                                   # Node dependency (Playwright), stale test config
 └── playwright.config.js                           # Playwright config, stale (still points at foo.py)
 ```
-
-## Troubleshooting
-
-**`bokeh: command not found`**
-Bokeh was not installed or the virtual environment is not active. Run `pip install -r requirements.txt` inside the activated environment.
-
-**`ModuleNotFoundError: No module named 'matplotlib'` when loading `find_fixed_point.py`**
-`matplotlib` is required by `viz_simplex3d.py` but isn't in `requirements.txt`. Run `pip install matplotlib`.
-
-**Port 5006 is already in use**
-Either stop the existing process or pass a different port: `bokeh serve iterated_surprisal_distributions.py find_fixed_point.py continuous_iterated_surprisal_distributions.py continuous_find_fixed_point.py --port 5007`.
-
-**The browser shows a blank page or "connection refused"**
-The Bokeh server may still be starting up. Wait a moment and refresh. If it persists, check the terminal output for errors.
-
-**`pytest test_app.py` fails immediately trying to launch `foo.py`**
-The test file hasn't been updated since the app was renamed from `foo.py` to `iterated_surprisal_distributions.py`. Update the `bokeh serve` command and URL inside `test_app.py` (and `playwright.config.js`, if you use it) to reference `iterated_surprisal_distributions.py` / `/iterated_surprisal_distributions` before running.
-
-**Events are generated but the distribution doesn't change**
-Adding events updates the rug/history state; if a node exists, its distribution recomputes automatically on **Add events**. If nothing has been derived yet, click **View derived distribution** first to create the initial P node.
-
-**`ProtocolError("Token is expired...")` in server logs**
-Harmless — it comes from stale browser tabs trying to reconnect to an old session after the server restarts (e.g. via `entr`). Safe to ignore.
