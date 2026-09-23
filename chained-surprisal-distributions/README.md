@@ -1,45 +1,10 @@
 # Entropy & Surprisal Explorer
 
-An interactive browser-based toolkit for building probability distributions from sampled events and exploring entropy, surprisal, and self-information "chains" in real time. It ships as **four separate Bokeh apps** — a discrete (histogram) version and a continuous (KDE) version, each with a plain explorer and a "fixed point" variant that repeatedly re-derives the surprisal distribution of its own surprisal distribution until it stops changing.
+This was made to explore the idea that the surprisal of an event is itself an event. The probability distribution of those surprisal events can itself be used as another model under which you can calculate surprisals of events. So, you can chain together such distributions and pass batches of events into the top of that chain, and get distributions of surprisals based on distributions of surprisals, and so on. You can play with that directly with iterated_surprisal_distributions.py.  
 
-## What It Does
+Invariably a fixed point is found. (Why is obvious enough when you think about it.) You can explore that with find_fixed_point.py.
 
-All four apps share the same core idea: you generate random events from a chosen distribution family, bin (or fit a density to) those events into a distribution **P**, and the app shows you the Shannon entropy of that distribution. You can then **derive** a child distribution — the surprisal (`-log2(probability)`) of each event under its parent — and repeat, building a chain of distributions.
-
-### `iterated_surprisal_distributions.py` — discrete explorer (`/iterated_surprisal_distributions`)
-
-- **Rug plot / transport controls** — step through accumulated events one at a time or all at once, via a history slider, back/forward buttons, and an "Add events (one by one)" animated playback button.
-- **Event generation** — pick a distribution family (Uniform, Normal, Beta, Exponential) from a dropdown, tune its parameters with sliders, and choose to **Append** new events or **Replace** all events. You can also inject a single event at an exact value.
-- **P distribution bar chart** — a histogram over bin edges you control, with Shannon entropy (in bits) shown in the plot title.
-- **Bin edge controls** — a "Split point" slider plus "Freeze edge" to lock it in, an "Add single edge" text box, and "evenly spaced" left/right/count sliders to generate many edges at once. The outermost bins always extend to ±infinity and visually stretch to fill the viewport on pan/zoom.
-- **Laplace smoothing** — a Gaussian(μ, σ) prior is blended into each bin's count via a "Prior strength α" slider, so no bin's probability is ever exactly zero.
-- **Probability vs. probability density** toggle, and fixed vs. adaptive Y-axis scaling.
-- **Derive chains** — click "View derived distribution" to create a child node whose events are the surprisal values of the parent's events; each child can itself be split into bins and further derived, building an arbitrarily long chain/tree. A "Control all descendants' parameters" checkbox gangs a node's bin/prior settings down to its descendants.
-- **KL divergence and Wasserstein (W1) distance** are displayed between each node and its parent/child.
-- **Hover-to-trace** — hovering over a bin highlights the corresponding bins in every ancestor and descendant node, showing how a value's surprisal propagates through the chain.
-- **1/2/3-column layout** toggle for arranging multiple derived nodes.
-
-### `find_fixed_point.py` — discrete fixed-point explorer (`/find_fixed_point`)
-
-A single P1 node plus its first surprisal distribution S(P1), with the same bin-edge and prior controls as `iterated_surprisal_distributions.py`. Instead of manually deriving children, it automatically **iterates** the surprisal transform (re-bin → re-derive → re-bin …) up to 1000 times per event batch and reports how many iterations it took to converge (tolerance adjustable via a slider), or that it didn't converge. It also:
-
-- Tracks session-best convergence records.
-- Accumulates every converged fixed-point probability vector and visualizes them across four extra panels: a 3D simplex plot, a radial/spoke plot, a scatter-plot matrix, and a parallel-coordinates plot (all restricted to the most frequently active bins, with an optional "lock" to a fixed set of bins).
-- Overlays converged fixed-point distributions on a scatter chart with adjustable opacity.
-
-### `continuous_iterated_surprisal_distributions.py` — continuous (KDE) explorer (`/continuous_iterated_surprisal_distributions`)
-
-The same chaining/deriving idea as `iterated_surprisal_distributions.py`, but each node fits a **continuous density** to its events instead of binning them — via Gaussian KDE, adaptive KDE, a Gaussian mixture model, or a B-spline fit (selectable per node), blended with a Gaussian(μ, σ) prior. Deriving a child computes `S(x) = -log2(density(x) · Δx)` at each event, where Δx is an adjustable "bin width" stand-in. Additional controls include a bandwidth/smoothing slider, number-of-GMM-components slider, an event rug overlay with adjustable opacity, and a "trace new events" mode that highlights where newly added events land. A "Working…" indicator appears during slower recomputations (e.g. propagating settings to many descendants). The four bin-simplex viz panels from `find_fixed_point.py` have no continuous analogue and are not present here.
-
-### `continuous_find_fixed_point.py` — continuous fixed-point explorer (`/continuous_find_fixed_point`)
-
-The continuous analogue of `find_fixed_point.py`: a P1 node and its S(P1) node, both density-fit rather than binned, iterated to a fixed point the same way. Includes a progression view and an overlay chart of the density's shape across iterations, plus the same rug/trace overlays as `continuous_iterated_surprisal_distributions.py`.
-
-## Prerequisites
-
-- Python 3.8 or newer
-- **matplotlib** is required by `find_fixed_point.py` (via `viz_simplex3d.py`, for the 3D simplex panel) but is **not listed in `requirements.txt`** — install it separately (`pip install matplotlib`) if you plan to run `find_fixed_point.py`.
-- If you wish to run `test_app.py`, you will also need a browser installed via Playwright (see Running the Tests below).
+There are continuous-space version of those two, but the results you get are just quirks in whatever density-fitting technique you use.
 
 ## Installation
 
@@ -64,36 +29,19 @@ pip install -r requirements.txt
 pip install matplotlib   # needed by find_fixed_point.py; not in requirements.txt
 ```
 
-`requirements.txt` installs:
-
-- **numpy** — array math used throughout every app
-- **scipy** — random-sample generation (`events.py`) and, in the continuous apps, KDE/spline density fitting
-- **bokeh** — the interactive plotting framework and server that powers the UI
-- **pytest** / **pytest-playwright** — used by `test_app.py`
-
-No API keys or external accounts are required.
-
 ## Running the App
 
-The four apps are served together as one Bokeh multi-app server. Run it under `entr` so the server automatically restarts whenever any `.py` file in the directory changes:
+The four apps are served together as one Bokeh multi-app server. 
+
+```bash
+bokeh serve iterated_surprisal_distributions.py find_fixed_point.py continuous_iterated_surprisal_distributions.py continuous_find_fixed_point.py
+```
+
+If you are changing the code, you may find it convenient to run it under `entr` so the server automatically restarts whenever any relevant file in the directory changes, ex.:
 
 ```bash
 find . | grep \.py$ | entr -r bokeh serve iterated_surprisal_distributions.py find_fixed_point.py continuous_iterated_surprisal_distributions.py continuous_find_fixed_point.py
 ```
-
-`find . | grep \.py$` lists every `.py` file in the directory, and pipes that list into `entr`, which watches those files and reruns the given command each time one of them changes. The `-r` flag tells `entr` to restart the command (rather than just rerun it) on each change, which is what you want for a long-running server — it kills the old `bokeh serve` process and starts a fresh one, so edits to any app's code take effect without you having to stop and restart the server by hand.
-
-## What to Expect
-
-When `/iterated_surprisal_distributions` or `/continuous_iterated_surprisal_distributions` loads you will see:
-
-- An empty rug/event area at the top and a single P distribution (one infinite bin, entropy 0.0000 bits).
-- Below that, event-generation controls (distribution family, parameters, Append/Replace, n=, Add events).
-- Click **Add events** to generate a batch of samples.
-- Click **View derived distribution** to spawn a P node, then drag the **Split point** slider and click **Freeze edge** to add bin edges —the bar chart and entropy update immediately.
-- Click **View derived distribution** again on that node to create a surprisal child, and repeat to build a chain. 
-
-On `/find_fixed_point` or `/continuous_find_fixed_point`, just add events — the app automatically iterates and reports the number of iterations to convergence (or "did not converge") without any manual deriving.
 
 ## Running the Tests
 
