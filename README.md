@@ -10,12 +10,11 @@ This repository contains three independent applications. See the README of each.
 
 ### [new-distribution-with-each-event/](./new-distribution-with-each-event/README.md) — Interactive entropy simulator
 
-Made to explore changes in surprisals and entropy as the distribution (under which the surprisals are calculated) changes. 
+Made to explore changes in surprisals and entropy as the distribution (under which the surprisals are calculated) changes.
 
-**Stack:** Python, numpy, scipy, matplotlib/TkAgg
+**Stack:** Three.js, Chart.js, jStat (browser, no build step)
 
-#### [new-distribution-with-each-event/web/](./new-distribution-with-each-event/web/README.md) 
-Web version.
+An earlier Python/matplotlib version is archived at [archive/new-distribution-with-each-event/](./archive/new-distribution-with-each-event/README.md).
 
 ---
 
