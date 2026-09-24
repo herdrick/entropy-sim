@@ -504,7 +504,7 @@ function initCharts() {
           tension: 0,
         },
         {
-          label: 'Marginal H(X)',
+          label: 'Marginal entropy H(X)',
           data: [],
           borderColor: COLORS.marginalX,
           borderWidth: 1.5,
@@ -512,7 +512,7 @@ function initCharts() {
           tension: 0,
         },
         {
-          label: 'Marginal H(Y)',
+          label: 'Marginal entropy H(Y)',
           data: [],
           borderColor: COLORS.marginalY,
           borderWidth: 1.5,
@@ -547,6 +547,8 @@ function initCharts() {
           label: 'Surprisal',
           data: [],
           backgroundColor: COLORS.accent,
+          borderColor: COLORS.accent,
+          pointStyle: 'circle',
           pointRadius: 2.5,
         },
         {
@@ -555,6 +557,7 @@ function initCharts() {
           type: 'line',
           borderColor: COLORS.highlight,
           borderWidth: 1.5,
+          pointStyle: 'line',
           pointRadius: 0,
           tension: 0,
         },
@@ -571,7 +574,7 @@ function initCharts() {
       plugins: {
         legend: {
           display: true,
-          labels: { usePointStyle: true, pointStyle: 'line', boxWidth: 20, font: { size: 9 } },
+          labels: { usePointStyle: true, boxWidth: 12, font: { size: 9 } },
         },
       },
     },
