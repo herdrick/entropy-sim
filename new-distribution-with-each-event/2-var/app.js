@@ -228,8 +228,6 @@ function zStep() {
 }
 
 function xCenterForBin(i) {
-  if (i === 0) return BIN_EDGES[0] + BIN_WIDTH / 2;
-  if (i === TOTAL_BINS - 1) return BIN_EDGES[N_BIN_EDGES - 1] + BIN_WIDTH / 2;
   return (BIN_EDGES[i] + BIN_EDGES[i + 1]) / 2;
 }
 
