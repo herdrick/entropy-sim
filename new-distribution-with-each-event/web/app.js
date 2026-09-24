@@ -6,14 +6,20 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // Constants & Binning
 // =============================================================================
 
-// 21 edges produce 20 bins.
-// Bin 0 = (-inf, edge[1])        — leftmost, open on left
-// Bin i (1..18) = [edge[i], edge[i+1])  — interior
-// Bin 19 = [edge[19], +inf)      — rightmost, open on right
-const N_BIN_EDGES = 21;
-const BIN_EDGES = Array.from({ length: N_BIN_EDGES }, (_, i) => i / (N_BIN_EDGES - 1));
-const TOTAL_BINS = N_BIN_EDGES - 1; // 20
-const BIN_WIDTH = 1.0 / (N_BIN_EDGES - 1); // 0.05
+// N_BIN_EDGES edges produce N_BIN_EDGES-1 equal-width bins.
+// Bin 0 = (-inf, edge[1])              — leftmost, open on left
+// Bin i (1..N-2) = [edge[i], edge[i+1]) — interior
+// Bin N-1 = [edge[N-1], +inf)          — rightmost, open on right
+let N_BIN_EDGES, BIN_EDGES, TOTAL_BINS, BIN_WIDTH;
+
+function setBinEdgeCount(n) {
+  N_BIN_EDGES = n;
+  BIN_EDGES = Array.from({ length: N_BIN_EDGES }, (_, i) => i / (N_BIN_EDGES - 1));
+  TOTAL_BINS = N_BIN_EDGES - 1;
+  BIN_WIDTH = 1.0 / (N_BIN_EDGES - 1);
+}
+
+setBinEdgeCount(21);
 
 const COLORS = {
   accent: '#e94560',
@@ -145,6 +151,19 @@ function resetData() {
   state.runningAvgSurprisal = [];
 }
 
+// Changing the bin count re-bins all events seen so far into the new bins.
+// It does not touch entropyHistory/surprisalHistory/runningAvgSurprisal — those
+// are per-event snapshots computed under whatever bin count was active at the
+// time, and stay frozen; only events added after the change use the new bins.
+function setBinCount(n) {
+  setBinEdgeCount(n + 1);
+  state.counts = new Array(TOTAL_BINS).fill(0);
+  for (const v of state.events) {
+    state.counts[getBin(v)] += 1;
+  }
+  buildBars();
+}
+
 // =============================================================================
 // Three.js Histogram (Panel 1)
 // =============================================================================
@@ -154,34 +173,17 @@ let barMeshes = [[]]; // barMeshes[row][col] — single row for 1D, grid for fut
 let pdfLine = null;
 let initialCameraPosition, initialCameraTarget;
 
-function initHistogram() {
-  const container = document.getElementById('histogram-container');
+function buildBars() {
+  for (const mesh of barMeshes[0]) {
+    scene.remove(mesh);
+    mesh.geometry.dispose();
+    mesh.material.dispose();
+    for (const child of mesh.children) {
+      child.geometry.dispose();
+      child.material.dispose();
+    }
+  }
 
-  scene = new THREE.Scene();
-  scene.background = new THREE.Color(COLORS.bg);
-
-  const aspect = container.offsetWidth / container.offsetHeight;
-  const xSpan = 1.4;
-  const ySpan = xSpan / aspect;
-  camera = new THREE.OrthographicCamera(-0.2, 1.2, ySpan * 0.8, -ySpan * 0.1, -10, 10);
-  camera.position.set(0.5, 0.3, 5);
-  camera.lookAt(0.5, 0.3, 0);
-
-  renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setSize(container.offsetWidth, container.offsetHeight);
-  renderer.setPixelRatio(window.devicePixelRatio);
-  container.insertBefore(renderer.domElement, container.firstChild);
-
-  orbitControls = new OrbitControls(camera, renderer.domElement);
-  orbitControls.enableDamping = true;
-  orbitControls.rotateSpeed = 0.7;
-  orbitControls.zoomSpeed = 0.8;
-  orbitControls.panSpeed = 1.0;
-
-  initialCameraPosition = camera.position.clone();
-  initialCameraTarget = orbitControls.target.clone();
-
-  // Create bar meshes
   barMeshes = [[]];
   const barColor = new THREE.Color(COLORS.barFill);
   const edgeColor = new THREE.Color(COLORS.barEdge);
@@ -214,6 +216,36 @@ function initHistogram() {
 
     barMeshes[0].push(mesh);
   }
+}
+
+function initHistogram() {
+  const container = document.getElementById('histogram-container');
+
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(COLORS.bg);
+
+  const aspect = container.offsetWidth / container.offsetHeight;
+  const xSpan = 1.4;
+  const ySpan = xSpan / aspect;
+  camera = new THREE.OrthographicCamera(-0.2, 1.2, ySpan * 0.8, -ySpan * 0.1, -10, 10);
+  camera.position.set(0.5, 0.3, 5);
+  camera.lookAt(0.5, 0.3, 0);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(container.offsetWidth, container.offsetHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+  container.insertBefore(renderer.domElement, container.firstChild);
+
+  orbitControls = new OrbitControls(camera, renderer.domElement);
+  orbitControls.enableDamping = true;
+  orbitControls.rotateSpeed = 0.7;
+  orbitControls.zoomSpeed = 0.8;
+  orbitControls.panSpeed = 1.0;
+
+  initialCameraPosition = camera.position.clone();
+  initialCameraTarget = orbitControls.target.clone();
+
+  buildBars();
 
   // X-axis line
   const axisMat = new THREE.LineBasicMaterial({ color: 0xaaaaaa });
@@ -544,6 +576,15 @@ function initControls() {
     state.speed = parseInt(speedSlider.value);
     speedVal.textContent = state.speed;
     if (state.playing) startTimer();
+  });
+
+  const binCountSlider = document.getElementById('bin-count-slider');
+  const binCountVal = document.getElementById('bin-count-value');
+  binCountSlider.addEventListener('input', () => {
+    const n = parseInt(binCountSlider.value);
+    binCountVal.textContent = n;
+    setBinCount(n);
+    updateAll();
   });
 
   document.querySelectorAll('input[name="source"]').forEach(radio => {
