@@ -14,8 +14,6 @@ Made to explore changes in surprisals and entropy as the distribution (under whi
 
 **Stack:** Three.js, Chart.js, jStat (browser, no build step)
 
-An earlier Python/matplotlib version is archived at [archive/new-distribution-with-each-event/](./archive/new-distribution-with-each-event/README.md).
-
 ---
 
 ### [chained-surprisal-distributions/](./chained-surprisal-distributions/README.md) — Entropy & surprisal explorer
