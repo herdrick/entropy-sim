@@ -365,6 +365,7 @@ function initCharts() {
           borderColor: COLORS.highlight,
           borderWidth: 1.5,
           pointRadius: 0,
+          pointStyle: 'line',
           tension: 0,
         },
       ],
@@ -377,7 +378,7 @@ function initCharts() {
         x: { title: { display: true, text: 'Events' }, min: 1, max: 10 },
         y: { title: { display: true, text: 'Surprisal (bits)' }, min: 0, max: 8 },
       },
-      plugins: { legend: { display: true } },
+      plugins: { legend: { display: true, labels: { usePointStyle: true } } },
     },
   });
 }
