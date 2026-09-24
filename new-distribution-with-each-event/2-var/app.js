@@ -346,7 +346,7 @@ function buildHistogramGrid() {
   scene.add(xLabel);
   gridHelperObjects.push(xLabel);
 
-  const yLabel = makeTextSprite('P');
+  const yLabel = makeTextSprite('ℙ');
   yLabel.position.set(-0.05, 0.55, -0.05);
   scene.add(yLabel);
   gridHelperObjects.push(yLabel);
