@@ -194,15 +194,9 @@ function buildBars() {
     const mat = new THREE.MeshBasicMaterial({ color: barColor.clone() });
     const mesh = new THREE.Mesh(geo, mat);
 
-    // Bin center positions
-    let xCenter;
-    if (i === 0) {
-      xCenter = BIN_EDGES[0] + BIN_WIDTH / 2; // leftmost displayed same width
-    } else if (i === TOTAL_BINS - 1) {
-      xCenter = BIN_EDGES[N_BIN_EDGES - 1] + BIN_WIDTH / 2; // rightmost
-    } else {
-      xCenter = (BIN_EDGES[i] + BIN_EDGES[i + 1]) / 2;
-    }
+    // Bin center position (bins 0 and TOTAL_BINS-1 catch outliers but are
+    // displayed at the same width/position as an interior bin would be)
+    const xCenter = (BIN_EDGES[i] + BIN_EDGES[i + 1]) / 2;
 
     mesh.position.set(xCenter, 0, 0);
     mesh.scale.y = 0.0001;
