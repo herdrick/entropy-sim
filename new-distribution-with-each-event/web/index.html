@@ -112,19 +112,6 @@
       border-color: #e94560;
     }
 
-    #controls3d {
-      position: absolute;
-      top: 6px;
-      right: 6px;
-      background: rgba(22, 33, 62, 0.85);
-      padding: 6px 8px;
-      border-radius: 4px;
-      font-size: 0.65rem;
-      color: #999;
-      z-index: 100;
-      line-height: 1.5;
-    }
-
     /* Latest event panel */
     #latest-event-content {
       display: flex;
@@ -276,12 +263,6 @@
         <div class="panel-body">
           <div id="histogram-container">
             <button id="resetCameraBtn" title="Reset camera">&#x21ba;</button>
-            <div id="controls3d">
-              <strong>3D Controls:</strong><br>
-              Orbit: Left drag<br>
-              Zoom: Scroll<br>
-              Pan: Right drag
-            </div>
           </div>
         </div>
       </div>
@@ -323,18 +304,16 @@
 
       <div class="slider-group">
         <label>
-          <span>Speed</span>
-          <span id="speed-value">10</span> / sec
+          <span id="speed-value">10</span> events/second
         </label>
         <input type="range" id="speed-slider" min="1" max="1000" value="10">
       </div>
 
       <div class="slider-group">
         <label>
-          <span>Bin count</span>
-          <span id="bin-count-value">20</span> bins
+          <span id="bin-count-value">20</span> equal width bins
         </label>
-        <input type="range" id="bin-count-slider" min="5" max="50" value="20">
+        <input type="range" id="bin-count-slider" min="1" max="200" value="20">
       </div>
 
       <div>
