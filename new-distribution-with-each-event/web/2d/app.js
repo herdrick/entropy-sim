@@ -84,29 +84,6 @@ function sourcePdf(key, x) {
   return src.components.reduce((s, c) => s + c.weight * jStat.beta.pdf(x, c.alpha, c.beta), 0);
 }
 
-function sourceCdf(key, x) {
-  const src = SOURCES[key];
-  if (src.type === 'uniform') return x <= 0 ? 0 : x >= 1 ? 1 : x;
-  if (src.type === 'beta') return jStat.beta.cdf(x, src.alpha, src.beta);
-  return src.components.reduce((s, c) => s + c.weight * jStat.beta.cdf(x, c.alpha, c.beta), 0);
-}
-
-function sourceEntropy(key) {
-  const cdfAtEdges = BIN_EDGES.map(e => sourceCdf(key, e));
-  const binProbs = new Array(TOTAL_BINS).fill(0);
-  binProbs[0] = cdfAtEdges[1];
-  for (let i = 1; i < TOTAL_BINS - 1; i++) {
-    binProbs[i] = cdfAtEdges[i + 1] - cdfAtEdges[i];
-  }
-  binProbs[TOTAL_BINS - 1] = 1.0 - cdfAtEdges[N_BIN_EDGES - 1];
-
-  let h = 0;
-  for (const p of binProbs) {
-    if (p > 0) h -= p * Math.log2(p);
-  }
-  return h;
-}
-
 // =============================================================================
 // Mystery Alphabet (categorical variable Y, over {a, b, c, ...})
 // =============================================================================
@@ -147,13 +124,6 @@ function sampleAlphabet(key, n) {
     if (r < cum) return i;
   }
   return pmf.length - 1;
-}
-
-function alphabetEntropy(key, n) {
-  const pmf = alphabetPmf(key, n);
-  let h = 0;
-  for (const p of pmf) if (p > 0) h -= p * Math.log2(p);
-  return h;
 }
 
 // =============================================================================
@@ -267,6 +237,27 @@ function zCenterForCategory(row) {
   return (row + 0.5) * zStep();
 }
 
+function makeTextSprite(text, { fontSize = 48, color = '#ccc', scale = 0.09 } = {}) {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.font = `${fontSize}px sans-serif`;
+  const textWidth = ctx.measureText(text).width;
+  canvas.width = textWidth + 16;
+  canvas.height = fontSize * 1.4;
+  ctx.font = `${fontSize}px sans-serif`;
+  ctx.fillStyle = color;
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 8, canvas.height / 2);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
+  const sprite = new THREE.Sprite(material);
+  const aspect = canvas.width / canvas.height;
+  sprite.scale.set(scale * aspect, scale, 1);
+  return sprite;
+}
+
 function clearHistogramGrid() {
   for (const row of barMeshes) {
     for (const mesh of row) {
@@ -349,21 +340,44 @@ function buildHistogramGrid() {
     gridHelperObjects.push(line);
   }
 
-  for (const obj of gridHelperObjects) obj.visible = scaffoldingVisible;
+  // Axis name labels
+  const xLabel = makeTextSprite('X (continuous)');
+  xLabel.position.set(1.22, 0, 0);
+  scene.add(xLabel);
+  gridHelperObjects.push(xLabel);
 
-  updateCategoryLegend();
+  const yLabel = makeTextSprite('P');
+  yLabel.position.set(-0.05, 0.55, -0.05);
+  scene.add(yLabel);
+  gridHelperObjects.push(yLabel);
+
+  const zLabel = makeTextSprite('Y (category)');
+  zLabel.position.set(0, 0, 1.15);
+  scene.add(zLabel);
+  gridHelperObjects.push(zLabel);
+
+  // X-axis tick labels at 0 and 1
+  for (const xVal of [0, 1]) {
+    const tick = makeTextSprite(String(xVal), { fontSize: 40, scale: 0.065 });
+    tick.position.set(xVal, -0.04, 0);
+    scene.add(tick);
+    gridHelperObjects.push(tick);
+  }
+
+  // Category letter labels along the z-axis
+  for (let row = 0; row < state.alphabetSize; row++) {
+    const label = makeTextSprite(categoryLabel(row), { fontSize: 40, scale: 0.065 });
+    label.position.set(-0.1, 0, zCenterForCategory(row));
+    scene.add(label);
+    gridHelperObjects.push(label);
+  }
+
+  for (const obj of gridHelperObjects) obj.visible = scaffoldingVisible;
 }
 
 function setScaffoldingVisible(visible) {
   scaffoldingVisible = visible;
   for (const obj of gridHelperObjects) obj.visible = visible;
-}
-
-function updateCategoryLegend() {
-  const el = document.getElementById('category-legend');
-  if (!el) return;
-  const labels = Array.from({ length: state.alphabetSize }, (_, i) => categoryLabel(i));
-  el.textContent = `Categories (near→far): ${labels.join(', ')}`;
 }
 
 function makeCamera(mode, aspect) {
@@ -505,15 +519,6 @@ function initCharts() {
           pointRadius: 0,
           tension: 0,
         },
-        {
-          label: 'True H(X,Y) = H(X)+H(Y)',
-          data: [],
-          borderColor: COLORS.highlight,
-          borderWidth: 1.5,
-          borderDash: [6, 3],
-          pointRadius: 0,
-          hidden: true,
-        },
       ],
     },
     options: {
@@ -618,17 +623,6 @@ function updateEntropyChart() {
   entropyChart.data.datasets[1].data = state.marginalXEntropyHistory;
   entropyChart.data.datasets[2].data = state.marginalYEntropyHistory;
 
-  const trueDs = entropyChart.data.datasets[3];
-  if (state.revealed && n > 0) {
-    const trueX = sourceEntropy(state.currentSource);
-    const trueY = alphabetEntropy(state.currentAlphabet, state.alphabetSize);
-    trueDs.data = labels.map(() => trueX + trueY);
-    trueDs.hidden = false;
-  } else {
-    trueDs.data = [];
-    trueDs.hidden = true;
-  }
-
   if (n > 0) {
     entropyChart.options.scales.x.min = 1;
     entropyChart.options.scales.x.max = Math.max(n, 10);
@@ -636,7 +630,6 @@ function updateEntropyChart() {
       ...state.jointEntropyHistory,
       ...state.marginalXEntropyHistory,
       ...state.marginalYEntropyHistory,
-      ...(trueDs.hidden ? [] : trueDs.data),
     ];
     entropyChart.options.scales.y.min = Math.min(...allH) - 0.3;
     entropyChart.options.scales.y.max = Math.max(...allH) + 0.3;

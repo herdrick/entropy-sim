@@ -92,35 +92,6 @@
       height: 100%;
     }
 
-    #histogram-toolbar {
-      position: absolute;
-      top: 6px;
-      left: 6px;
-      display: flex;
-      gap: 4px;
-      z-index: 100;
-    }
-
-    #resetCameraBtn, #toggleCameraBtn {
-      background: rgba(22, 33, 62, 0.9);
-      border: 1px solid #555;
-      border-radius: 4px;
-      padding: 4px 8px;
-      font-size: 14px;
-      cursor: pointer;
-      color: #ccc;
-      transition: background 0.2s;
-    }
-
-    #toggleCameraBtn {
-      font-size: 0.7rem;
-    }
-
-    #resetCameraBtn:hover, #toggleCameraBtn:hover {
-      background: rgba(22, 33, 62, 1);
-      border-color: #e94560;
-    }
-
     #controls3d {
       position: absolute;
       top: 6px;
@@ -132,6 +103,32 @@
       color: #999;
       z-index: 100;
       line-height: 1.5;
+    }
+
+    #controls3d-btn-row {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 4px;
+    }
+
+    #resetCameraBtn, #toggleCameraBtn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 14px;
+      cursor: pointer;
+      color: #ccc;
+      transition: background 0.2s;
+    }
+
+    #toggleCameraBtn {
+      font-size: 0.65rem;
+    }
+
+    #resetCameraBtn:hover, #toggleCameraBtn:hover {
+      background: rgba(255, 255, 255, 0.18);
+      border-color: #e94560;
     }
 
     #controls3d label {
@@ -305,17 +302,16 @@
         <div class="panel-title">Live Histogram</div>
         <div class="panel-body">
           <div id="histogram-container">
-            <div id="histogram-toolbar">
-              <button id="resetCameraBtn" title="Reset camera">&#x21ba;</button>
-              <button id="toggleCameraBtn" title="Toggle perspective / orthographic">Perspective</button>
-            </div>
             <div id="controls3d">
+              <div id="controls3d-btn-row">
+                <button id="resetCameraBtn" title="Reset camera">&#x21ba;</button>
+                <button id="toggleCameraBtn" title="Toggle perspective / orthographic">Perspective</button>
+              </div>
               <strong>3D Controls:</strong><br>
               <label><input type="checkbox" id="scaffolding-toggle" checked> Show scaffolding</label>
               &bull; Orbit: Left click + drag<br>
               &bull; Zoom: Mouse wheel<br>
               &bull; Pan: Right click + drag<br>
-              <span id="category-legend"></span>
             </div>
           </div>
         </div>
