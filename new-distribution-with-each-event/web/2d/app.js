@@ -563,7 +563,7 @@ function initCharts() {
         x: { title: { display: true, text: 'Events' }, min: 1, max: 10 },
         y: { title: { display: true, text: 'Joint surprisal (bits)' }, min: 0, max: 8 },
       },
-      plugins: { legend: { display: false } },
+      plugins: { legend: { display: true, labels: { boxWidth: 12, font: { size: 9 } } } },
     },
   });
 }
