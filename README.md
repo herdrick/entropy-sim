@@ -10,9 +10,9 @@ This repository contains three independent applications. See the README of each.
 
 ### [new-distribution-with-each-event/](./new-distribution-with-each-event/README.md) — Interactive entropy simulator
 
-A desktop GUI (matplotlib/TkAgg).
+Made to explore changes in surprisals and entropy as the distribution (under which the surprisals are calculated) changes. 
 
-**Stack:** Python, numpy, scipy, matplotlib
+**Stack:** Python, numpy, scipy, matplotlib/TkAgg
 
 #### [new-distribution-with-each-event/web/](./new-distribution-with-each-event/web/README.md) 
 Web version.
@@ -21,6 +21,6 @@ Web version.
 
 ### [chained-surprisal-distributions/](./chained-surprisal-distributions/README.md) — Entropy & surprisal explorer
 
-A browser-based [Bokeh](https://bokeh.org) server app for building probability distributions from scratch. Generate events, bin them however you like by adding bin edges, and watch Shannon entropy update in the chart title with each change. Outermost bins extend to infinity; empty bins receive Laplace smoothing so the distribution is always well-defined.
+Made to explore the idea that the surprisal of an event is itself an event.
 
 **Stack:** Python, numpy, scipy, [Bokeh](https://bokeh.org) (browser UI); Playwright (optional tests)
