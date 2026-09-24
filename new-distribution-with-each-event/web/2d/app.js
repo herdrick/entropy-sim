@@ -529,7 +529,12 @@ function initCharts() {
         x: { title: { display: true, text: 'Events' }, min: 1, max: 10 },
         y: { title: { display: true, text: 'Entropy (bits)' } },
       },
-      plugins: { legend: { display: true, labels: { boxWidth: 12, font: { size: 9 } } } },
+      plugins: {
+        legend: {
+          display: true,
+          labels: { usePointStyle: true, pointStyle: 'line', boxWidth: 20, font: { size: 9 } },
+        },
+      },
     },
   });
 
@@ -563,7 +568,12 @@ function initCharts() {
         x: { title: { display: true, text: 'Events' }, min: 1, max: 10 },
         y: { title: { display: true, text: 'Joint surprisal (bits)' }, min: 0, max: 8 },
       },
-      plugins: { legend: { display: true, labels: { boxWidth: 12, font: { size: 9 } } } },
+      plugins: {
+        legend: {
+          display: true,
+          labels: { usePointStyle: true, pointStyle: 'line', boxWidth: 20, font: { size: 9 } },
+        },
+      },
     },
   });
 }
