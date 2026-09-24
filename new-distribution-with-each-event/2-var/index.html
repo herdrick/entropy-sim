@@ -203,12 +203,6 @@
     }
     #btn-reset:hover { background: #e94560; }
 
-    #btn-reveal {
-      background: #533483;
-      color: #fff;
-    }
-    #btn-reveal:hover { background: #e94560; }
-
     .btn-row {
       display: flex;
       gap: 6px;
@@ -249,6 +243,35 @@
     }
 
     .source-group input[type="radio"] {
+      accent-color: #e94560;
+    }
+
+    .dist-glyph {
+      font-size: 1rem;
+      line-height: 1;
+      width: 1.2em;
+      text-align: center;
+      color: #e2d810;
+    }
+
+    .dist-sublabel {
+      font-size: 0.75rem;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 2px;
+    }
+
+    .hide-checkbox {
+      font-size: 0.8rem;
+      color: #ccc;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .hide-checkbox input[type="checkbox"] {
       accent-color: #e94560;
     }
 
@@ -350,8 +373,6 @@
         <button id="btn-play">Play</button>
         <button id="btn-reset">Reset</button>
       </div>
-      <button id="btn-reveal">Reveal Distributions</button>
-
       <div class="slider-group">
         <label>
           <span id="speed-value">10</span> events/second
@@ -359,16 +380,14 @@
         <input type="range" id="speed-slider" min="1" max="1000" value="10">
       </div>
 
+      <label class="hide-checkbox">
+        <input type="checkbox" id="hide-distributions" checked> Hide distribution sources
+      </label>
+
       <div>
-        <h2>Mystery Source</h2>
-        <div class="source-group">
-          <label><input type="radio" name="source" value="Source A" checked> Source A</label>
-          <label><input type="radio" name="source" value="Source B"> Source B</label>
-          <label><input type="radio" name="source" value="Source C"> Source C</label>
-          <label><input type="radio" name="source" value="Source D"> Source D</label>
-          <label><input type="radio" name="source" value="Source E"> Source E</label>
-          <label><input type="radio" name="source" value="Source F"> Source F</label>
-        </div>
+        <h2>X (continuous)</h2>
+        <div class="dist-sublabel">Distribution</div>
+        <div class="source-group" id="source-radios"></div>
       </div>
 
       <div class="slider-group">
@@ -379,14 +398,9 @@
       </div>
 
       <div>
-        <h2>Mystery Alphabet</h2>
-        <div class="source-group">
-          <label><input type="radio" name="alphabet" value="Alphabet A" checked> Alphabet A</label>
-          <label><input type="radio" name="alphabet" value="Alphabet B"> Alphabet B</label>
-          <label><input type="radio" name="alphabet" value="Alphabet C"> Alphabet C</label>
-          <label><input type="radio" name="alphabet" value="Alphabet D"> Alphabet D</label>
-          <label><input type="radio" name="alphabet" value="Alphabet E"> Alphabet E</label>
-        </div>
+        <h2>Y (categorical)</h2>
+        <div class="dist-sublabel">Distribution</div>
+        <div class="source-group" id="alphabet-radios"></div>
       </div>
 
       <div class="slider-group">

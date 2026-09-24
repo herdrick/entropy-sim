@@ -52,13 +52,13 @@ function categoryLabel(i) {
 // =============================================================================
 
 const SOURCES = {
-  'Source A': { name: 'Uniform(0,1)', type: 'uniform' },
-  'Source B': { name: 'Beta(2,5)', alpha: 2, beta: 5, type: 'beta' },
-  'Source C': { name: 'Beta(0.5,0.5)', alpha: 0.5, beta: 0.5, type: 'beta' },
-  'Source D': { name: 'Beta(5,5)', alpha: 5, beta: 5, type: 'beta' },
-  'Source E': { name: 'Beta(0.3,0.3)', alpha: 0.3, beta: 0.3, type: 'beta' },
+  'Source A': { name: 'Uniform(0,1)', glyph: '●', type: 'uniform' },
+  'Source B': { name: 'Beta(2,5)', glyph: '▲', alpha: 2, beta: 5, type: 'beta' },
+  'Source C': { name: 'Beta(0.5,0.5)', glyph: '■', alpha: 0.5, beta: 0.5, type: 'beta' },
+  'Source D': { name: 'Beta(5,5)', glyph: '◆', alpha: 5, beta: 5, type: 'beta' },
+  'Source E': { name: 'Beta(0.3,0.3)', glyph: '★', alpha: 0.3, beta: 0.3, type: 'beta' },
   'Source F': {
-    name: 'Mixture: 0.5*Beta(2,2)+0.5*Beta(20,20)', type: 'mixture',
+    name: 'Mixture: 0.5*Beta(2,2)+0.5*Beta(20,20)', glyph: '✚', type: 'mixture',
     components: [{ alpha: 2, beta: 2, weight: 0.5 }, { alpha: 20, beta: 20, weight: 0.5 }],
   },
 };
@@ -89,11 +89,11 @@ function sourcePdf(key, x) {
 // =============================================================================
 
 const ALPHABETS = {
-  'Alphabet A': { name: 'Uniform', type: 'uniform' },
-  'Alphabet B': { name: 'Zipf (s=1)', type: 'zipf', s: 1 },
-  'Alphabet C': { name: 'Zipf (s=2)', type: 'zipf', s: 2 },
-  'Alphabet D': { name: 'Geometric (r=0.5)', type: 'geometric', r: 0.5 },
-  'Alphabet E': { name: 'Dominant symbol (90%)', type: 'dominant', p: 0.9 },
+  'Alphabet A': { name: 'Uniform', glyph: '●', type: 'uniform' },
+  'Alphabet B': { name: 'Zipf (s=1)', glyph: '▲', type: 'zipf', s: 1 },
+  'Alphabet C': { name: 'Zipf (s=2)', glyph: '■', type: 'zipf', s: 2 },
+  'Alphabet D': { name: 'Geometric (r=0.5)', glyph: '◆', type: 'geometric', r: 0.5 },
+  'Alphabet E': { name: 'Dominant symbol (90%)', glyph: '★', type: 'dominant', p: 0.9 },
 };
 
 function alphabetPmf(key, n) {
@@ -175,7 +175,7 @@ const state = {
   currentAlphabet: 'Alphabet A',
   alphabetSize: 3,
   playing: false,
-  revealed: false,
+  sourcesHidden: true,
   speed: 10,
   events: [], // { value, catIdx }
   counts: makeCounts2d(3),
@@ -602,7 +602,7 @@ function updatePdfOverlay() {
     scene.remove(pdfLine);
     pdfLine = null;
   }
-  if (!state.revealed) return;
+  if (state.sourcesHidden) return;
 
   // Draw the continuous PDF as a curtain at each category's z-slot, scaled by that category's probability.
   const pmf = alphabetPmf(state.currentAlphabet, state.alphabetSize);
@@ -699,7 +699,7 @@ function updateAll() {
   updateEntropyChart();
   updateSurprisalChart();
   updateLatestEvent();
-  if (state.revealed) updatePdfOverlay();
+  if (!state.sourcesHidden) updatePdfOverlay();
 }
 
 // =============================================================================
@@ -742,6 +742,36 @@ function stopTimer() {
 // UI Controls
 // =============================================================================
 
+function buildDistributionRadios(containerId, name, options, checkedKey, onChange) {
+  const container = document.getElementById(containerId);
+  container.innerHTML = '';
+  for (const key of Object.keys(options)) {
+    const label = document.createElement('label');
+    const radio = document.createElement('input');
+    radio.type = 'radio';
+    radio.name = name;
+    radio.value = key;
+    if (key === checkedKey) radio.checked = true;
+    radio.addEventListener('change', () => onChange(key));
+    const text = document.createElement('span');
+    text.className = 'dist-label';
+    text.dataset.key = key;
+    label.appendChild(radio);
+    label.appendChild(text);
+    container.appendChild(label);
+  }
+  renderDistributionLabels(containerId, options);
+}
+
+function renderDistributionLabels(containerId, options) {
+  const container = document.getElementById(containerId);
+  container.querySelectorAll('.dist-label').forEach(span => {
+    const opt = options[span.dataset.key];
+    span.textContent = state.sourcesHidden ? opt.glyph : opt.name;
+    span.classList.toggle('dist-glyph', state.sourcesHidden);
+  });
+}
+
 function rebuildCategorySelect() {
   const select = document.getElementById('event-category-select');
   select.innerHTML = '';
@@ -762,20 +792,17 @@ function initControls() {
   });
 
   document.getElementById('btn-reset').addEventListener('click', () => {
-    state.revealed = false;
-    document.getElementById('btn-reveal').textContent = 'Reveal Distributions';
     resetData();
     buildHistogramGrid();
     updatePdfOverlay();
     updateAll();
   });
 
-  const revealBtn = document.getElementById('btn-reveal');
-  revealBtn.addEventListener('click', () => {
-    state.revealed = !state.revealed;
-    revealBtn.textContent = state.revealed
-      ? `${SOURCES[state.currentSource].name} × ${ALPHABETS[state.currentAlphabet].name}`
-      : 'Reveal Distributions';
+  const hideCheckbox = document.getElementById('hide-distributions');
+  hideCheckbox.addEventListener('change', () => {
+    state.sourcesHidden = hideCheckbox.checked;
+    renderDistributionLabels('source-radios', SOURCES);
+    renderDistributionLabels('alphabet-radios', ALPHABETS);
     updatePdfOverlay();
     updateEntropyChart();
   });
@@ -797,26 +824,16 @@ function initControls() {
     updateAll();
   });
 
-  document.querySelectorAll('input[name="source"]').forEach(radio => {
-    radio.addEventListener('change', () => {
-      state.currentSource = radio.value;
-      if (state.revealed) {
-        revealBtn.textContent = `${SOURCES[state.currentSource].name} × ${ALPHABETS[state.currentAlphabet].name}`;
-      }
-      updatePdfOverlay();
-      updateEntropyChart();
-    });
+  buildDistributionRadios('source-radios', 'source', SOURCES, state.currentSource, (key) => {
+    state.currentSource = key;
+    updatePdfOverlay();
+    updateEntropyChart();
   });
 
-  document.querySelectorAll('input[name="alphabet"]').forEach(radio => {
-    radio.addEventListener('change', () => {
-      state.currentAlphabet = radio.value;
-      if (state.revealed) {
-        revealBtn.textContent = `${SOURCES[state.currentSource].name} × ${ALPHABETS[state.currentAlphabet].name}`;
-      }
-      updatePdfOverlay();
-      updateEntropyChart();
-    });
+  buildDistributionRadios('alphabet-radios', 'alphabet', ALPHABETS, state.currentAlphabet, (key) => {
+    state.currentAlphabet = key;
+    updatePdfOverlay();
+    updateEntropyChart();
   });
 
   const alphabetSizeSlider = document.getElementById('alphabet-size-slider');
