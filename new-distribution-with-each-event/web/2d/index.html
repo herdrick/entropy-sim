@@ -92,22 +92,31 @@
       height: 100%;
     }
 
-    #resetCameraBtn {
+    #histogram-toolbar {
       position: absolute;
       top: 6px;
       left: 6px;
+      display: flex;
+      gap: 4px;
+      z-index: 100;
+    }
+
+    #resetCameraBtn, #toggleCameraBtn {
       background: rgba(22, 33, 62, 0.9);
       border: 1px solid #555;
       border-radius: 4px;
       padding: 4px 8px;
       font-size: 14px;
       cursor: pointer;
-      z-index: 100;
       color: #ccc;
       transition: background 0.2s;
     }
 
-    #resetCameraBtn:hover {
+    #toggleCameraBtn {
+      font-size: 0.7rem;
+    }
+
+    #resetCameraBtn:hover, #toggleCameraBtn:hover {
       background: rgba(22, 33, 62, 1);
       border-color: #e94560;
     }
@@ -123,6 +132,17 @@
       color: #999;
       z-index: 100;
       line-height: 1.5;
+    }
+
+    #controls3d label {
+      cursor: pointer;
+      display: block;
+    }
+
+    #controls3d input[type="checkbox"] {
+      accent-color: #e94560;
+      vertical-align: middle;
+      margin-right: 2px;
     }
 
     /* Latest event panel */
@@ -285,12 +305,16 @@
         <div class="panel-title">Live Histogram</div>
         <div class="panel-body">
           <div id="histogram-container">
-            <button id="resetCameraBtn" title="Reset camera">&#x21ba;</button>
+            <div id="histogram-toolbar">
+              <button id="resetCameraBtn" title="Reset camera">&#x21ba;</button>
+              <button id="toggleCameraBtn" title="Toggle perspective / orthographic">Perspective</button>
+            </div>
             <div id="controls3d">
               <strong>3D Controls:</strong><br>
-              Orbit: Left drag<br>
-              Zoom: Scroll<br>
-              Pan: Right drag<br>
+              <label><input type="checkbox" id="scaffolding-toggle" checked> Show scaffolding</label>
+              &bull; Orbit: Left click + drag<br>
+              &bull; Zoom: Mouse wheel<br>
+              &bull; Pan: Right click + drag<br>
               <span id="category-legend"></span>
             </div>
           </div>
@@ -334,10 +358,16 @@
 
       <div class="slider-group">
         <label>
-          <span>Speed</span>
-          <span id="speed-value">10</span> / sec
+          <span id="speed-value">10</span> events/second
         </label>
         <input type="range" id="speed-slider" min="1" max="1000" value="10">
+      </div>
+
+      <div class="slider-group">
+        <label>
+          <span id="bin-count-value">20</span> equal width bins
+        </label>
+        <input type="range" id="bin-count-slider" min="1" max="200" value="20">
       </div>
 
       <div>

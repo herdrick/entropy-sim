@@ -6,17 +6,20 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // Constants & Binning (continuous variable X)
 // =============================================================================
 
-// 21 edges produce 20 bins.
-// Bin 0 = (-inf, edge[1])        — leftmost, open on left
-// Bin i (1..18) = [edge[i], edge[i+1])  — interior
-// Bin 19 = [edge[19], +inf)      — rightmost, open on right
-const N_BIN_EDGES = 21;
-const BIN_EDGES = Array.from({ length: N_BIN_EDGES }, (_, i) => i / (N_BIN_EDGES - 1));
-const TOTAL_BINS = N_BIN_EDGES - 1; // 20
-const BIN_WIDTH = 1.0 / (N_BIN_EDGES - 1); // 0.05
+// N_BIN_EDGES edges produce N_BIN_EDGES-1 equal-width bins.
+// Bin 0 = (-inf, edge[1])              — leftmost, open on left
+// Bin i (1..N-2) = [edge[i], edge[i+1]) — interior
+// Bin N-1 = [edge[N-1], +inf)          — rightmost, open on right
+let N_BIN_EDGES, BIN_EDGES, TOTAL_BINS, BIN_WIDTH;
 
-const MIN_ALPHABET_SIZE = 1;
-const MAX_ALPHABET_SIZE = 10;
+function setBinEdgeCount(n) {
+  N_BIN_EDGES = n;
+  BIN_EDGES = Array.from({ length: N_BIN_EDGES }, (_, i) => i / (N_BIN_EDGES - 1));
+  TOTAL_BINS = N_BIN_EDGES - 1;
+  BIN_WIDTH = 1.0 / (N_BIN_EDGES - 1);
+}
+
+setBinEdgeCount(21);
 
 const COLORS = {
   accent: '#e94560',
@@ -224,6 +227,19 @@ function resetData() {
   state.runningAvgSurprisal = [];
 }
 
+// Changing the bin count re-bins all events seen so far into the new bins.
+// It does not touch the entropy/surprisal histories — those are per-event
+// snapshots computed under whatever bin count was active at the time, and
+// stay frozen; only events added after the change use the new bins.
+function setBinCount(n) {
+  setBinEdgeCount(n + 1);
+  state.counts = makeCounts2d(state.alphabetSize);
+  for (const { value, catIdx } of state.events) {
+    state.counts[catIdx][getBin(value)] += 1;
+  }
+  buildHistogramGrid();
+}
+
 // =============================================================================
 // Three.js Histogram (Panel 1): grid of bars over (bin, category)
 // =============================================================================
@@ -233,6 +249,9 @@ let barMeshes = []; // barMeshes[row=category][col=bin]
 let pdfLine = null;
 let gridHelperObjects = [];
 let initialCameraPosition, initialCameraTarget;
+let cameraMode = 'perspective';
+let scaffoldingVisible = true;
+const ORTHO_VIEW_SIZE = 1.6;
 
 function zStep() {
   return 1.0 / state.alphabetSize;
@@ -330,7 +349,14 @@ function buildHistogramGrid() {
     gridHelperObjects.push(line);
   }
 
+  for (const obj of gridHelperObjects) obj.visible = scaffoldingVisible;
+
   updateCategoryLegend();
+}
+
+function setScaffoldingVisible(visible) {
+  scaffoldingVisible = visible;
+  for (const obj of gridHelperObjects) obj.visible = visible;
 }
 
 function updateCategoryLegend() {
@@ -340,28 +366,54 @@ function updateCategoryLegend() {
   el.textContent = `Categories (near→far): ${labels.join(', ')}`;
 }
 
-function initHistogram() {
+function makeCamera(mode, aspect) {
+  if (mode === 'orthographic') {
+    return new THREE.OrthographicCamera(
+      -ORTHO_VIEW_SIZE * aspect / 2, ORTHO_VIEW_SIZE * aspect / 2,
+      ORTHO_VIEW_SIZE / 2, -ORTHO_VIEW_SIZE / 2, -10, 20,
+    );
+  }
+  return new THREE.PerspectiveCamera(45, aspect, 0.01, 20);
+}
+
+function setCameraMode(mode) {
+  cameraMode = mode;
   const container = document.getElementById('histogram-container');
-
-  scene = new THREE.Scene();
-  scene.background = new THREE.Color(COLORS.bg);
-
   const aspect = container.offsetWidth / container.offsetHeight;
-  camera = new THREE.PerspectiveCamera(45, aspect, 0.01, 20);
-  camera.position.set(1.6, 1.1, 1.9);
-  camera.lookAt(0.5, 0.15, 0.5);
+  const prevPosition = camera ? camera.position.clone() : new THREE.Vector3(1.6, 1.1, 1.9);
+  const prevTarget = orbitControls ? orbitControls.target.clone() : new THREE.Vector3(0.5, 0.15, 0.5);
 
-  renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setSize(container.offsetWidth, container.offsetHeight);
-  renderer.setPixelRatio(window.devicePixelRatio);
-  container.insertBefore(renderer.domElement, container.firstChild);
+  if (orbitControls) orbitControls.dispose();
+
+  camera = makeCamera(mode, aspect);
+  camera.position.copy(prevPosition);
+  camera.lookAt(prevTarget);
+  camera.updateProjectionMatrix();
 
   orbitControls = new OrbitControls(camera, renderer.domElement);
   orbitControls.enableDamping = true;
   orbitControls.rotateSpeed = 0.7;
   orbitControls.zoomSpeed = 0.8;
   orbitControls.panSpeed = 1.0;
-  orbitControls.target.set(0.5, 0.15, 0.5);
+  orbitControls.target.copy(prevTarget);
+  orbitControls.update();
+
+  const toggleBtn = document.getElementById('toggleCameraBtn');
+  if (toggleBtn) toggleBtn.textContent = mode === 'perspective' ? 'Perspective' : 'Orthographic';
+}
+
+function initHistogram() {
+  const container = document.getElementById('histogram-container');
+
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(COLORS.bg);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(container.offsetWidth, container.offsetHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+  container.insertBefore(renderer.domElement, container.firstChild);
+
+  setCameraMode('perspective');
 
   initialCameraPosition = camera.position.clone();
   initialCameraTarget = orbitControls.target.clone();
@@ -376,13 +428,31 @@ function initHistogram() {
     orbitControls.update();
   });
 
+  // Perspective / orthographic toggle
+  document.getElementById('toggleCameraBtn').addEventListener('click', () => {
+    setCameraMode(cameraMode === 'perspective' ? 'orthographic' : 'perspective');
+  });
+
+  // Scaffolding toggle
+  document.getElementById('scaffolding-toggle').addEventListener('change', (e) => {
+    setScaffoldingVisible(e.target.checked);
+  });
+
   // Resize handling
   const ro = new ResizeObserver(() => {
     const w = container.offsetWidth;
     const h = container.offsetHeight;
     if (w === 0 || h === 0) return;
     renderer.setSize(w, h);
-    camera.aspect = w / h;
+    const aspect = w / h;
+    if (camera.isPerspectiveCamera) {
+      camera.aspect = aspect;
+    } else {
+      camera.left = -ORTHO_VIEW_SIZE * aspect / 2;
+      camera.right = ORTHO_VIEW_SIZE * aspect / 2;
+      camera.top = ORTHO_VIEW_SIZE / 2;
+      camera.bottom = -ORTHO_VIEW_SIZE / 2;
+    }
     camera.updateProjectionMatrix();
   });
   ro.observe(container);
@@ -712,6 +782,15 @@ function initControls() {
     state.speed = parseInt(speedSlider.value);
     speedVal.textContent = state.speed;
     if (state.playing) startTimer();
+  });
+
+  const binCountSlider = document.getElementById('bin-count-slider');
+  const binCountVal = document.getElementById('bin-count-value');
+  binCountSlider.addEventListener('input', () => {
+    const n = parseInt(binCountSlider.value);
+    binCountVal.textContent = n;
+    setBinCount(n);
+    updateAll();
   });
 
   document.querySelectorAll('input[name="source"]').forEach(radio => {
