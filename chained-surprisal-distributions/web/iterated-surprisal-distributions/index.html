@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Entropy &amp; Surprisal Explorer — Chained Distributions</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: #1a1a2e;
+    color: #ccc;
+    min-height: 100vh;
+  }
+
+  h1 {
+    text-align: center;
+    padding: 10px 0 6px;
+    font-size: 1.3rem;
+    color: #fff;
+    letter-spacing: 0.5px;
+  }
+
+  .top-panel {
+    background: #16213e;
+    border-radius: 8px;
+    margin: 0 10px 10px;
+    padding: 12px;
+  }
+
+  .control-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .control-row:last-child { margin-bottom: 0; }
+
+  label.field-label {
+    font-size: 0.8rem;
+    color: #aaa;
+    white-space: nowrap;
+  }
+
+  select, input[type="text"], input[type="number"] {
+    background: #0a0f1e;
+    border: 1px solid #333;
+    border-radius: 4px;
+    color: #fff;
+    padding: 6px 8px;
+    font-size: 0.85rem;
+  }
+  select:focus, input:focus { outline: none; border-color: #e94560; }
+
+  button {
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 8px 14px;
+    background: #0f3460;
+    color: #fff;
+    transition: background 0.15s;
+    white-space: nowrap;
+  }
+  button:hover:not(:disabled) { background: #e94560; }
+  button:disabled { opacity: 0.4; cursor: default; }
+  button.primary { background: #533483; }
+  button.primary:hover:not(:disabled) { background: #e94560; }
+  button.success { background: #1b6b3a; }
+  button.success:hover:not(:disabled) { background: #e94560; }
+  button.warning { background: #7a4a0f; }
+  button.warning:hover:not(:disabled) { background: #e94560; }
+
+  .radio-group {
+    display: inline-flex;
+    border-radius: 5px;
+    overflow: hidden;
+    border: 1px solid #333;
+  }
+  .radio-group button {
+    background: #0a0f1e;
+    border-radius: 0;
+    padding: 6px 12px;
+  }
+  .radio-group button.active { background: #e94560; }
+
+  .param-sliders { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+
+  .slider-field { display: flex; flex-direction: column; min-width: 150px; }
+  .slider-field .slider-label { font-size: 0.75rem; color: #aaa; display: flex; justify-content: space-between; }
+  .slider-field input[type="range"] { width: 100%; accent-color: #e94560; margin-top: 2px; }
+
+  .checkbox-field { display: flex; align-items: center; gap: 6px; font-size: 0.82rem; cursor: pointer; }
+  .checkbox-field input[type="checkbox"] { accent-color: #e94560; }
+
+  #single-event-status { font-size: 0.78rem; color: #e94560; min-width: 160px; }
+
+  .transport-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #16213e;
+    border-radius: 8px;
+    margin: 0 10px 14px;
+    padding: 10px 12px;
+  }
+  .transport-row input[type="range"] { flex: 1; accent-color: #e94560; }
+  #history-label { font-size: 0.8rem; color: #aaa; white-space: nowrap; min-width: 110px; }
+
+  #initial-derive-wrap { text-align: center; margin: 0 10px 16px; }
+
+  #node-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    padding: 0 10px 20px;
+    align-items: flex-start;
+  }
+
+  .node-panel {
+    background: #16213e;
+    border-radius: 8px;
+    padding: 12px;
+    width: 940px;
+    flex: 0 0 auto;
+  }
+
+  .node-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 8px;
+  }
+
+  .node-plot-row { display: flex; gap: 16px; align-items: flex-start; }
+
+  .node-canvas-wrap { position: relative; width: 660px; height: 360px; }
+  .node-canvas-wrap canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
+
+  .node-tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: rgba(10, 15, 30, 0.95);
+    border: 1px solid #e94560;
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-size: 0.72rem;
+    color: #eee;
+    line-height: 1.5;
+    white-space: nowrap;
+    z-index: 20;
+    display: none;
+  }
+
+  .edge-panel { width: 240px; display: flex; flex-direction: column; gap: 8px; }
+  .edge-row { display: flex; gap: 6px; align-items: center; }
+  .edge-row input[type="text"] { width: 90px; }
+
+  .node-bottom-row { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; margin-top: 10px; }
+
+  .kl-display { font-size: 0.78rem; color: #ccc; line-height: 1.7; }
+  .kl-display a { color: #e94560; }
+
+  #scroll-hint { text-align: center; font-size: 0.72rem; color: #666; padding-bottom: 10px; }
+</style>
+</head>
+<body>
+  <h1>Entropy &amp; Surprisal Explorer — Chained Distributions</h1>
+
+  <div class="top-panel">
+    <div class="control-row" id="row-source">
+      <label class="field-label">Source:</label>
+      <select id="family-select"></select>
+      <div class="param-sliders" id="dist-params-row"></div>
+      <div class="radio-group" id="append-replace-radio">
+        <button data-value="append" class="active">Append</button>
+        <button data-value="replace">Replace</button>
+      </div>
+      <button id="add-events-btn" class="success">Add events</button>
+      <button id="add-events-one-by-one-btn" class="success">Add events (one by one)</button>
+      <label class="field-label"><b>n =</b></label>
+      <input type="text" id="n-events-input" value="1000" style="width:70px">
+      <button id="clear-events-btn" class="warning" disabled>Clear events</button>
+    </div>
+    <div class="control-row" id="row-single">
+      <input type="text" id="single-event-input" placeholder="Add event at value…" style="width:180px">
+      <label class="field-label"><b>count:</b></label>
+      <input type="text" id="single-event-count-input" value="1" style="width:50px">
+      <span id="single-event-status"></span>
+      <label class="checkbox-field"><input type="checkbox" id="trace-checkbox" checked> Trace event flow on hover</label>
+      <label class="field-label"><b>Layout:</b></label>
+      <div class="radio-group" id="col-count-radio">
+        <button data-value="1" class="active">1 col</button>
+        <button data-value="2">2 col</button>
+        <button data-value="3">3 col</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="transport-row">
+    <button id="history-back-btn" disabled>&#9664;</button>
+    <input type="range" id="history-slider" min="0" max="1" value="0" step="1" disabled>
+    <button id="history-fwd-btn" disabled>&#9654;</button>
+    <span id="history-label">Step 0 of 0</span>
+  </div>
+
+  <div id="initial-derive-wrap">
+    <button id="initial-derive-btn" class="primary" style="width:240px">View derived distribution</button>
+  </div>
+
+  <div id="node-grid"></div>
+  <div id="scroll-hint">Scroll right to see more nodes in multi-column layouts. Drag a histogram to pan, scroll wheel to zoom, double-click to reset.</div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

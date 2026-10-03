@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Surprisal Fixed Point</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: #1a1a2e;
+    color: #ccc;
+    padding: 12px;
+  }
+
+  h1 {
+    color: #fff;
+    font-size: 1.3rem;
+    margin-bottom: 10px;
+    letter-spacing: 0.5px;
+  }
+
+  .panel {
+    background: #16213e;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 12px;
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+
+  .row + .row { margin-top: 10px; }
+
+  label.field-label {
+    font-size: 0.78rem;
+    color: #9aa5c0;
+    display: block;
+    margin-bottom: 2px;
+  }
+
+  .slider-field { display: flex; flex-direction: column; min-width: 150px; }
+  .slider-field input[type="range"] { accent-color: #e94560; width: 100%; }
+  .slider-value { font-size: 0.72rem; color: #777; }
+
+  select, input[type="text"], input[type="number"] {
+    background: #0a0f1e;
+    border: 1px solid #333;
+    border-radius: 4px;
+    color: #fff;
+    padding: 5px 7px;
+    font-size: 0.82rem;
+  }
+  select:focus, input:focus { outline: none; border-color: #e94560; }
+
+  button {
+    background: #0f3460;
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    padding: 7px 14px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  button:hover:not(:disabled) { background: #e94560; }
+  button:disabled { opacity: 0.4; cursor: default; }
+  button.warning { background: #533483; }
+  button.warning:hover:not(:disabled) { background: #e94560; }
+  button.success { background: #1e7a4b; }
+  button.success:hover:not(:disabled) { background: #e94560; }
+
+  .status-text { font-size: 0.78rem; color: #e94560; min-height: 1.2em; }
+
+  .node-panel { display: flex; gap: 18px; align-items: flex-start; }
+  .node-canvas-wrap { position: relative; flex-shrink: 0; }
+  canvas.hist-canvas { background: #0a0f1e; border-radius: 6px; cursor: grab; display: block; }
+  canvas.hist-canvas:active { cursor: grabbing; }
+
+  .hist-tooltip {
+    position: absolute;
+    background: rgba(10,15,30,0.95);
+    border: 1px solid #e94560;
+    border-radius: 4px;
+    padding: 6px 9px;
+    font-size: 0.72rem;
+    color: #eee;
+    pointer-events: none;
+    white-space: nowrap;
+    z-index: 20;
+    display: none;
+  }
+
+  .edge-panel { display: flex; flex-direction: column; gap: 8px; width: 260px; }
+  .edge-panel .row { gap: 6px; }
+
+  .node-title { color: #fff; font-size: 0.95rem; font-weight: 600; margin-bottom: 8px; }
+
+  .radio-group { display: flex; gap: 10px; }
+  .radio-group label { font-size: 0.8rem; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+
+  .transport-row { display: flex; align-items: center; gap: 8px; }
+  .transport-row input[type="range"] { flex: 1; accent-color: #e94560; }
+  .transport-label { font-size: 0.78rem; color: #9aa5c0; white-space: nowrap; }
+
+  #convergence-div { font-size: 0.95rem; line-height: 1.5; }
+  #convergence-div b { color: #fff; }
+
+  .overlay-charts { display: flex; flex-direction: column; gap: 10px; }
+  canvas.overlay-canvas { background: #0a0f1e; border-radius: 6px; display: block; }
+  .overlay-title { font-size: 0.8rem; color: #9aa5c0; margin-bottom: 4px; }
+
+  .viz-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  .viz-panel { background: #0a0f1e; border-radius: 6px; padding: 8px; }
+  .viz-panel canvas { display: block; }
+  .viz-panel-title { font-size: 0.8rem; color: #9aa5c0; margin-bottom: 6px; }
+  .no-data-msg { font-size: 0.8rem; color: #666; padding: 20px; text-align: center; }
+
+  .scatter-matrix-grid { display: grid; gap: 2px; }
+  .scatter-matrix-grid canvas { background: #11182e; }
+
+  #bin-lock-status { font-size: 0.78rem; color: #9aa5c0; }
+  .lock-toggle-row { display: flex; align-items: center; gap: 10px; }
+  input[type="checkbox"] { accent-color: #e94560; width: 16px; height: 16px; cursor: pointer; }
+</style>
+</head>
+<body>
+<h1>Surprisal Fixed Point</h1>
+
+<div class="panel">
+  <div class="row">
+    <div>
+      <label class="field-label">Source family</label>
+      <select id="family-select"></select>
+    </div>
+    <div id="dist-params-row" class="row"></div>
+    <div class="radio-group" id="append-replace-radio">
+      <label><input type="radio" name="append-replace" value="append" checked> Append</label>
+      <label><input type="radio" name="append-replace" value="replace"> Replace</label>
+    </div>
+    <button id="add-events-btn" class="success">Add events</button>
+    <button id="add-events-one-by-one-btn" class="success">Add events (one by one)</button>
+    <div>
+      <label class="field-label">n =</label>
+      <input type="number" id="n-events-input" value="1000" style="width:80px">
+    </div>
+    <button id="clear-events-btn" class="warning" disabled>Clear events</button>
+    <div class="slider-field">
+      <label class="field-label">Convergence tolerance (log&#8321;&#8320;) <span class="slider-value" id="tol-value">-8</span></label>
+      <input type="range" id="tol-slider" min="-12" max="-3" step="1" value="-8">
+    </div>
+  </div>
+  <div class="row">
+    <input type="text" id="single-event-input" placeholder="Add event at value&hellip;" style="width:200px">
+    <label class="field-label" style="margin:0">count:</label>
+    <input type="number" id="single-event-count-input" value="1" style="width:60px">
+    <span class="status-text" id="single-event-status"></span>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="transport-row">
+    <button id="history-back-btn" disabled>&#9664;</button>
+    <input type="range" id="history-slider" min="0" max="1" value="0" step="1" disabled>
+    <button id="history-fwd-btn" disabled>&#9654;</button>
+    <span class="transport-label" id="history-label">Step 0 of 0</span>
+  </div>
+</div>
+
+<div class="panel" id="p1-panel"></div>
+<div class="panel" id="surp-panel"></div>
+
+<div class="panel">
+  <div id="convergence-div"><i>Add events to compute fixed-point iterations.</i></div>
+</div>
+
+<div class="panel">
+  <div class="slider-field" style="max-width:220px">
+    <label class="field-label">Opacity <span class="slider-value" id="fp-bar-alpha-value">0.15</span></label>
+    <input type="range" id="fp-bar-alpha-slider" min="0" max="1" step="0.01" value="0.15">
+  </div>
+  <div class="overlay-charts" id="fp-barchart-wrap" style="margin-top:10px"></div>
+</div>
+
+<div class="panel">
+  <div class="row" style="justify-content: space-between">
+    <button id="clear-simplex-btn" class="warning">Clear points</button>
+    <div class="lock-toggle-row">
+      <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">
+        <input type="checkbox" id="lock-bins-toggle"> Lock bins
+      </label>
+      <div class="slider-field" style="min-width:180px">
+        <label class="field-label">Min frequency % <span class="slider-value" id="min-freq-value">10</span></label>
+        <input type="range" id="min-freq-slider" min="0" max="100" step="1" value="10">
+      </div>
+      <span id="bin-lock-status"></span>
+    </div>
+  </div>
+  <div class="row" style="margin-top:12px; align-items: flex-start;">
+    <div class="viz-panel" id="simplex3d-panel"></div>
+    <div id="simplex-stats-div" style="width:160px; font-size:0.8rem;"></div>
+  </div>
+  <div class="viz-grid" style="margin-top:12px">
+    <div class="viz-panel" id="radial-panel"></div>
+    <div class="viz-panel" id="parallel-panel"></div>
+  </div>
+  <div class="viz-panel" id="scatter-matrix-panel" style="margin-top:12px"></div>
+</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

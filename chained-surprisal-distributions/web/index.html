@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Entropy &amp; Surprisal Explorer</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #1a1a2e;
+      color: #ccc;
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+
+    .wrap {
+      max-width: 880px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      color: #fff;
+      font-size: 1.8rem;
+      letter-spacing: 0.3px;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      color: #9a9ab0;
+      font-size: 0.95rem;
+      line-height: 1.6;
+      margin-bottom: 32px;
+      max-width: 640px;
+    }
+
+    .subtitle a { color: #e94560; }
+
+    .cards {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    @media (max-width: 640px) {
+      .cards { grid-template-columns: 1fr; }
+    }
+
+    a.card {
+      display: block;
+      background: #16213e;
+      border: 1px solid #22304f;
+      border-radius: 10px;
+      padding: 20px;
+      text-decoration: none;
+      color: inherit;
+      transition: border-color 0.15s, transform 0.15s;
+    }
+
+    a.card:hover {
+      border-color: #e94560;
+      transform: translateY(-2px);
+    }
+
+    .card .tag {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: #e94560;
+      background: rgba(233, 69, 96, 0.12);
+      border-radius: 4px;
+      padding: 2px 8px;
+      margin-bottom: 10px;
+    }
+
+    .card h2 {
+      color: #fff;
+      font-size: 1.1rem;
+      margin-bottom: 8px;
+    }
+
+    .card p {
+      font-size: 0.85rem;
+      line-height: 1.5;
+      color: #aaa;
+    }
+
+    footer {
+      margin-top: 40px;
+      font-size: 0.8rem;
+      color: #666;
+    }
+
+    footer a { color: #888; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Entropy &amp; Surprisal Explorer</h1>
+    <p class="subtitle">
+      The surprisal of an event is itself an event. The probability distribution of
+      those surprisal events can be used as another model under which to calculate
+      surprisals of events &mdash; chain enough of these together and a fixed point
+      is always found. These are standalone web ports of the original Bokeh apps
+      in this repo; pick a page below.
+    </p>
+
+    <div class="cards">
+      <a class="card" href="iterated-surprisal-distributions/index.html">
+        <span class="tag">Discrete</span>
+        <h2>Chained Distributions</h2>
+        <p>Build a chain of histograms, each node's events are the surprisals of the node above it. Explore bin edges, priors, and KL/W1 between neighbors.</p>
+      </a>
+
+      <a class="card" href="find-fixed-point/index.html">
+        <span class="tag">Discrete</span>
+        <h2>Find Fixed Point</h2>
+        <p>Automatically iterate the surprisal-of-surprisal chain to convergence, and see where repeated runs tend to land across bins (simplex, radial, scatter-matrix &amp; parallel-coordinates views).</p>
+      </a>
+
+      <a class="card" href="continuous-iterated-surprisal-distributions/index.html">
+        <span class="tag">Continuous</span>
+        <h2>Chained Distributions</h2>
+        <p>Same chaining idea, but each node fits a smooth density (KDE, adaptive KDE, Gaussian mixture, or B-spline) instead of a histogram.</p>
+      </a>
+
+      <a class="card" href="continuous-find-fixed-point/index.html">
+        <span class="tag">Continuous</span>
+        <h2>Find Fixed Point</h2>
+        <p>Continuous-density version of the fixed-point search, with a convergence progression chart and an overlay of every converged density found.</p>
+      </a>
+    </div>
+
+    <footer>
+      Runs entirely client-side &mdash; served with <code>python -m http.server</code>, no backend required.
+    </footer>
+  </div>
+</body>
+</html>

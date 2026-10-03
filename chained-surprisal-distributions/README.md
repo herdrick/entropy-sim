@@ -26,6 +26,17 @@ If you are changing the code, you may find it convenient to run it under `entr` 
 find . | grep \.py$ | entr -r bokeh serve iterated_surprisal_distributions.py find_fixed_point.py continuous_iterated_surprisal_distributions.py continuous_find_fixed_point.py
 ```
 
+## Web version
+
+`web/` contains standalone, static HTML/JS ports of all four apps (no Python/Bokeh
+server required). Serve it with:
+
+```bash
+cd web && python -m http.server 8080
+```
+
+then open `http://localhost:8080/`.
+
 ## Running the Tests
 
 `test_app.py` uses `pytest` + Playwright. 
