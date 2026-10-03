@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Surprisal Fixed Point — Continuous</title>
+<script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: #1a1a2e;
+    color: #ccc;
+    padding: 12px 16px 40px;
+  }
+
+  h1 {
+    font-size: 1.3rem;
+    color: #fff;
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
+  }
+
+  .panel {
+    background: #16213e;
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .row + .row { margin-top: 10px; }
+
+  label.field {
+    display: flex;
+    flex-direction: column;
+    font-size: 0.72rem;
+    color: #999;
+    gap: 2px;
+  }
+
+  label.field span.val { color: #ccc; font-weight: 600; }
+
+  select, input[type=text], input[type=number] {
+    background: #0a0f1e;
+    border: 1px solid #333;
+    border-radius: 4px;
+    color: #fff;
+    padding: 5px 6px;
+    font-size: 0.8rem;
+  }
+
+  input[type=range] {
+    width: 160px;
+    accent-color: #e94560;
+  }
+
+  button {
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 600;
+    padding: 7px 14px;
+    background: #0f3460;
+    color: #fff;
+    transition: background 0.15s;
+  }
+  button:hover:not(:disabled) { background: #e94560; }
+  button:disabled { opacity: 0.4; cursor: default; }
+  button.warning { background: #533483; }
+  button.toggle-group { display: flex; gap: 0; }
+  .toggle-group button {
+    border-radius: 0;
+    background: #0a0f1e;
+  }
+  .toggle-group button:first-child { border-radius: 5px 0 0 5px; }
+  .toggle-group button:last-child { border-radius: 0 5px 5px 0; }
+  .toggle-group button.active { background: #e94560; }
+
+  .status { font-size: 0.78rem; color: #e94560; min-width: 180px; }
+
+  .transport { display: flex; align-items: center; gap: 8px; }
+  .transport input[type=range] { flex: 1; width: auto; }
+  .transport-label { font-size: 0.78rem; color: #999; white-space: nowrap; }
+
+  .node-panel h2 {
+    font-size: 1rem;
+    color: #fff;
+    margin-bottom: 8px;
+  }
+
+  .node-body { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+  .chart-wrap { flex: 1; min-width: 420px; position: relative; height: 320px; }
+  .chart-wrap canvas { width: 100% !important; height: 100% !important; }
+  .side-panel { width: 150px; }
+
+  .checkbox-row { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: #ccc; }
+  .checkbox-row input { accent-color: #e94560; }
+
+  #convergence-div {
+    font-size: 0.92rem;
+    line-height: 1.5;
+  }
+  #convergence-div b { color: #fff; }
+
+  .chart-panel { position: relative; height: 300px; }
+  .chart-panel canvas { width: 100% !important; height: 100% !important; }
+
+  .section-title { font-size: 0.95rem; color: #fff; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<h1>Surprisal Fixed Point — Continuous</h1>
+
+<div class="panel">
+  <div class="row">
+    <select id="family-select"></select>
+    <div class="row" id="dist-params-row"></div>
+    <div class="toggle-group" id="append-replace-toggle">
+      <button class="active" data-val="0">Append</button>
+      <button data-val="1">Replace</button>
+    </div>
+    <button id="add-events-btn">Add events</button>
+    <button id="add-events-one-by-one-btn">Add events (one by one)</button>
+    <span style="font-size:0.8rem"><b>n =</b></span>
+    <input type="text" id="n-events-input" value="1000" style="width:70px">
+    <button id="clear-events-btn" class="warning" disabled>Clear events</button>
+    <div class="checkbox-row">
+      <input type="checkbox" id="rug-checkbox">
+      <label for="rug-checkbox">Show event rug</label>
+    </div>
+    <label class="field">Rug opacity <span class="val" id="rug-alpha-val">0.15</span>
+      <input type="range" id="rug-alpha-slider" min="0" max="1" step="0.01" value="0.15">
+    </label>
+    <label class="field">Convergence tolerance (log₁₀) <span class="val" id="tol-val">-10</span>
+      <input type="range" id="tol-slider" min="-12" max="-3" step="1" value="-10">
+    </label>
+  </div>
+  <div class="row">
+    <input type="text" id="single-event-input" placeholder="Add event at value…" style="width:200px">
+    <span style="font-size:0.8rem"><b>count:</b></span>
+    <input type="text" id="single-event-count-input" value="1" style="width:50px">
+    <span class="status" id="single-event-status"></span>
+  </div>
+</div>
+
+<div class="panel transport">
+  <button id="history-back-btn" disabled>◀</button>
+  <input type="range" id="history-slider" min="0" max="1" value="0" step="1" disabled>
+  <button id="history-fwd-btn" disabled>▶</button>
+  <span class="transport-label" id="history-label">Step 0 of 0</span>
+</div>
+
+<div class="panel node-panel" id="p1-panel">
+  <h2 id="p1-title">P1  |  entropy = 0.0000 bits</h2>
+  <div class="row" id="p1-param-row"></div>
+  <div class="node-body">
+    <div class="chart-wrap"><canvas id="p1-canvas"></canvas></div>
+    <div class="side-panel" id="p1-binwidth-panel">
+      <label class="field">Bin width Δx <span class="val" id="p1-binwidth-val">1.00</span>
+        <input type="range" id="p1-binwidth-slider" min="0.01" max="5" step="0.01" value="1.0">
+      </label>
+    </div>
+  </div>
+  <div class="row">
+    <select id="p1-yscale-select">
+      <option value="adaptive">Y: adaptive</option>
+      <option value="fixed">Y: fixed 0–1</option>
+    </select>
+  </div>
+</div>
+
+<div class="panel node-panel" id="sp1-panel">
+  <h2 id="sp1-title">S(P1) — First Surprisal Distribution</h2>
+  <div class="row" id="sp1-param-row"></div>
+  <div class="node-body">
+    <div class="chart-wrap"><canvas id="sp1-canvas"></canvas></div>
+  </div>
+  <div class="row">
+    <select id="sp1-yscale-select">
+      <option value="adaptive">Y: adaptive</option>
+      <option value="fixed">Y: fixed 0–1</option>
+    </select>
+  </div>
+</div>
+
+<div class="panel">
+  <div id="convergence-div"><i>Add events to compute fixed-point iterations.</i></div>
+</div>
+
+<div class="panel">
+  <div class="row">
+    <span class="section-title" style="margin:0">Convergence progression (last run)</span>
+    <select id="progression-yscale-select">
+      <option value="log">Y: log scale</option>
+      <option value="linear">Y: linear scale</option>
+    </select>
+  </div>
+  <div class="chart-panel"><canvas id="progression-canvas"></canvas></div>
+</div>
+
+<div class="panel">
+  <div class="row">
+    <button id="clear-overlays-btn" class="warning">Clear overlays</button>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <span class="section-title" id="overlay-title" style="margin:0">Fixed-point overlays — 0 points</span>
+  </div>
+  <div class="chart-panel"><canvas id="overlay-canvas"></canvas></div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
