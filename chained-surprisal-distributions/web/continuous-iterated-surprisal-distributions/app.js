@@ -499,7 +499,6 @@ let rootNode = null;
 let allEvents = new Float64Array(0);
 let historyIndex = 0;
 let transportCbGuard = false;
-let columnCount = 1;
 const allNodes = [];
 let stepHandle = null;
 let traceIndices = [];
@@ -830,8 +829,6 @@ function refreshTraceDisplay() {
 
 function rebuildGrid() {
   const grid = document.getElementById("node-grid");
-  grid.style.display = "grid";
-  grid.style.gridTemplateColumns = `repeat(${columnCount}, max-content)`;
   grid.replaceChildren(...allNodes.map(nd => nd.layoutEl));
 }
 
@@ -886,7 +883,6 @@ const traceCheckbox = createCheckbox("Trace new events");
 const clearTracesBtn = el("button", { type: "button", className: "small", text: "Clear traces" });
 const rugCheckbox = createCheckbox("Show event rug");
 const rugAlphaSlider = createSlider({ min: 0, max: 1, value: 0.15, step: 0.01, title: "Rug opacity", width: 180 });
-const colCountToggle = createToggleGroup(["1 col", "2 col", "3 col"], 0, (i) => { columnCount = i + 1; rebuildGrid(); });
 
 const historyBackBtn = el("button", { type: "button", text: "◀", disabled: true, style: { width: "44px" } });
 const historyFwdBtn = el("button", { type: "button", text: "▶", disabled: true, style: { width: "44px" } });
@@ -1088,7 +1084,6 @@ document.getElementById("top-controls").append(
   el("div", { className: "row" }, [
     singleEventInput,
     el("span", { html: "<b>count:</b>" }), singleEventCountInput, singleEventStatus,
-    el("span", { html: "<b>Layout:</b>" }), colCountToggle.wrapper,
     rugCheckbox.wrapper, rugAlphaSlider.wrapper,
   ]),
 );

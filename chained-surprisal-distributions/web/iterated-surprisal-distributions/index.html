@@ -115,7 +115,7 @@
 
   #node-grid {
     display: flex;
-    flex-wrap: wrap;
+    flex-direction: column;
     gap: 14px;
     padding: 0 10px 20px;
     align-items: flex-start;
@@ -192,12 +192,6 @@
       <input type="text" id="single-event-count-input" value="1" style="width:50px">
       <span id="single-event-status"></span>
       <label class="checkbox-field"><input type="checkbox" id="trace-checkbox" checked> Trace event flow on hover</label>
-      <label class="field-label"><b>Layout:</b></label>
-      <div class="radio-group" id="col-count-radio">
-        <button data-value="1" class="active">1 col</button>
-        <button data-value="2">2 col</button>
-        <button data-value="3">3 col</button>
-      </div>
     </div>
   </div>
 
@@ -213,7 +207,7 @@
   </div>
 
   <div id="node-grid"></div>
-  <div id="scroll-hint">Scroll right to see more nodes in multi-column layouts. Drag a histogram to pan, scroll wheel to zoom, double-click to reset.</div>
+  <div id="scroll-hint">Drag a histogram to pan, scroll wheel to zoom, double-click to reset.</div>
 
   <script type="module" src="app.js"></script>
 </body>

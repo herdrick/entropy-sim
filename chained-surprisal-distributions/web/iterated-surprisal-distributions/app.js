@@ -220,7 +220,6 @@ let rootEvents = [];
 let allEvents = [];
 let historyIndex = 0;
 let transportGuard = false;
-let columnCount = 1;
 const allNodes = [];
 let rootNode = null;
 let oneByOneHandle = null; // non-null while animating
@@ -892,8 +891,6 @@ function createChildNode(parentNode) {
 
 function rebuildGrid() {
   const grid = document.getElementById("node-grid");
-  grid.style.display = "grid";
-  grid.style.gridTemplateColumns = `repeat(${columnCount}, auto)`;
   grid.innerHTML = "";
   for (const n of allNodes) grid.appendChild(n.dom.panel);
   for (const n of allNodes) drawNode(n);
@@ -1070,11 +1067,6 @@ const historyFwdBtn = document.getElementById("history-fwd-btn");
 const historySlider = document.getElementById("history-slider");
 const historyLabel = document.getElementById("history-label");
 const initialDeriveBtn = document.getElementById("initial-derive-btn");
-
-const colCountRadio = makeRadioGroup(document.getElementById("col-count-radio"), (value) => {
-  columnCount = parseInt(value, 10);
-  rebuildGrid();
-});
 
 addEventsBtn.addEventListener("click", onAddEvents);
 addOneByOneBtn.addEventListener("click", onAddEventsOneByOne);
