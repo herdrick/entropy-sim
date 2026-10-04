@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Entropy Simulator</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #1a1a2e;
+      color: #ccc;
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+
+    .wrap {
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      color: #fff;
+      font-size: 1.8rem;
+      letter-spacing: 0.3px;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      color: #9a9ab0;
+      font-size: 0.95rem;
+      line-height: 1.6;
+      margin-bottom: 32px;
+      max-width: 640px;
+      list-style: none;
+    }
+
+    .subtitle li {
+      position: relative;
+      padding-left: 16px;
+      margin-bottom: 6px;
+    }
+
+    .subtitle li::before {
+      content: "\2013";
+      position: absolute;
+      left: 0;
+      color: #e94560;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    a.card {
+      display: flex;
+      flex-direction: column;
+      background: #16213e;
+      border: 1px solid #22304f;
+      border-radius: 10px;
+      padding: 18px;
+      text-decoration: none;
+      color: inherit;
+      transition: border-color 0.15s, transform 0.15s, background 0.15s;
+    }
+
+    a.card:hover {
+      border-color: #e94560;
+      background: #1a2744;
+      transform: translateY(-2px);
+    }
+
+    .card h2 {
+      color: #fff;
+      font-size: 1rem;
+      margin-bottom: 8px;
+    }
+
+    .card p {
+      font-size: 0.85rem;
+      line-height: 1.5;
+      color: #aaa;
+      flex: 1;
+    }
+
+    .card .open {
+      margin-top: 12px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #e94560;
+    }
+
+    @media (max-width: 560px) {
+      .cards {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Entropy Simulator</h1>
+    <ul class="subtitle">
+      <li>Samples an event from a source distribution, calculates that event's surprisal under the current model distribution, then updates the model to include the new event.</li>
+      <li>Watch how the model distribution — and its entropy — drift as more events are folded in.</li>
+    </ul>
+
+    <div class="cards">
+      <a class="card" href="1-var/index.html">
+        <h2>Single Variable</h2>
+        <p>One random variable. Sample events, update the model after each one, and track surprisal and entropy over time.</p>
+        <span class="open">Open &rarr;</span>
+      </a>
+      <a class="card" href="2-var/index.html">
+        <h2>Two Variables</h2>
+        <p>Same idea extended to two random variables, with joint and marginal views of the evolving model.</p>
+        <span class="open">Open &rarr;</span>
+      </a>
+    </div>
+  </div>
+</body>
+</html>
