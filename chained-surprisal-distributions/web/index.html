@@ -33,6 +33,25 @@
       line-height: 1.6;
       margin-bottom: 32px;
       max-width: 640px;
+      list-style: none;
+    }
+
+    .subtitle li {
+      position: relative;
+      padding-left: 16px;
+      margin-bottom: 6px;
+    }
+
+    .subtitle li::before {
+      content: "\2013";
+      position: absolute;
+      left: 0;
+      color: #e94560;
+    }
+
+    .subtitle ul {
+      list-style: none;
+      margin-top: 6px;
     }
 
     .subtitle a { color: #e94560; }
@@ -129,13 +148,14 @@
 <body>
   <div class="wrap">
     <h1>Entropy &amp; Surprisal Explorer</h1>
-    <p class="subtitle">
-      The surprisal of an event is itself an event. The probability distribution of
-      those surprisal events can be used as another model under which to calculate
-      surprisals of events &mdash; chain enough of these together and a fixed point
-      is always found. These are standalone web ports of the original Bokeh apps
-      in this repo; pick a page below.
-    </p>
+    <ul class="subtitle">
+      <li>The surprisal of an event is itself an event.</li>
+      <li>The probability distribution of those surprisal events can be used as another model under which to calculate surprisals of events.
+        <ul>
+          <li>Chain enough of these together and a fixed point is always found.</li>
+        </ul>
+      </li>
+    </ul>
 
     <div class="matrix">
       <div class="matrix-corner"></div>
