@@ -845,6 +845,10 @@ function propagateParamsDown(node) {
   child.dom.priorMu.value = node.dom.priorMu.value;
   child.dom.priorSigma.value = node.dom.priorSigma.value;
   child.syncEdgesAndRecompute();
+  if (!child.propagates) {
+    child.propagates = true;
+    child.dom.gangCheckbox.checked = true;
+  }
   propagateParamsDown(child);
 }
 

@@ -745,6 +745,10 @@ function propagateParamsDown(nd) {
     suspendRecompute = false;
   }
   child.renderParamRow();
+  if (!child.propagates) {
+    child.propagates = true;
+    child.gangCheckbox.checked = true;
+  }
   propagateParamsDown(child);
 }
 
