@@ -37,59 +37,96 @@
 
     .subtitle a { color: #e94560; }
 
-    .cards {
+    /* ── 2×2 matrix ─────────────────────────────────────────────── */
+
+    .matrix {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
+      grid-template-columns: 110px 1fr 1fr;
+      grid-template-rows: auto 1fr 1fr;
+      gap: 10px;
     }
 
-    @media (max-width: 640px) {
-      .cards { grid-template-columns: 1fr; }
+    .matrix-corner { /* empty top-left cell */ }
+
+    .col-head, .row-head {
+      color: #e94560;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+    }
+
+    .col-head {
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #2a3a5c;
+    }
+
+    .row-head {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      text-align: right;
+      line-height: 1.3;
+      padding-right: 10px;
+      border-right: 2px solid #2a3a5c;
     }
 
     a.card {
-      display: block;
+      display: flex;
+      flex-direction: column;
       background: #16213e;
       border: 1px solid #22304f;
       border-radius: 10px;
-      padding: 20px;
+      padding: 18px;
       text-decoration: none;
       color: inherit;
-      transition: border-color 0.15s, transform 0.15s;
+      transition: border-color 0.15s, transform 0.15s, background 0.15s;
     }
 
     a.card:hover {
       border-color: #e94560;
+      background: #1a2744;
       transform: translateY(-2px);
-    }
-
-    .card .tag {
-      display: inline-block;
-      font-size: 0.7rem;
-      font-weight: 600;
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
-      color: #e94560;
-      background: rgba(233, 69, 96, 0.12);
-      border-radius: 4px;
-      padding: 2px 8px;
-      margin-bottom: 10px;
-    }
-
-    .card h2 {
-      color: #fff;
-      font-size: 1.1rem;
-      margin-bottom: 8px;
     }
 
     .card p {
       font-size: 0.85rem;
       line-height: 1.5;
       color: #aaa;
+      flex: 1;
+    }
+
+    .card .open {
+      margin-top: 12px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #e94560;
+    }
+
+    .card-label {
+      display: none;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: #e94560;
+      margin-bottom: 8px;
+    }
+
+    @media (max-width: 560px) {
+      .matrix {
+        grid-template-columns: 1fr;
+        grid-template-rows: none;
+      }
+      .matrix-corner, .col-head, .row-head { display: none; }
+      .card-label { display: block; }
     }
 
     footer {
-      margin-top: 40px;
+      margin-top: 36px;
       font-size: 0.8rem;
       color: #666;
     }
@@ -108,29 +145,33 @@
       in this repo; pick a page below.
     </p>
 
-    <div class="cards">
+    <div class="matrix">
+      <div class="matrix-corner"></div>
+      <div class="col-head">Discrete</div>
+      <div class="col-head">Continuous</div>
+
+      <div class="row-head">Chained<br>Distributions</div>
       <a class="card" href="iterated-surprisal-distributions/index.html">
-        <span class="tag">Discrete</span>
-        <h2>Chained Distributions</h2>
+        <span class="card-label">Discrete &middot; Chained Distributions</span>
         <p>Build a chain of histograms, each node's events are the surprisals of the node above it. Explore bin edges, priors, and KL/W1 between neighbors.</p>
+        <span class="open">Open &rarr;</span>
       </a>
-
-      <a class="card" href="find-fixed-point/index.html">
-        <span class="tag">Discrete</span>
-        <h2>Find Fixed Point</h2>
-        <p>Automatically iterate the surprisal-of-surprisal chain to convergence, and see where repeated runs tend to land across bins (simplex, radial, scatter-matrix &amp; parallel-coordinates views).</p>
-      </a>
-
       <a class="card" href="continuous-iterated-surprisal-distributions/index.html">
-        <span class="tag">Continuous</span>
-        <h2>Chained Distributions</h2>
+        <span class="card-label">Continuous &middot; Chained Distributions</span>
         <p>Same chaining idea, but each node fits a smooth density (KDE, adaptive KDE, Gaussian mixture, or B-spline) instead of a histogram.</p>
+        <span class="open">Open &rarr;</span>
       </a>
 
+      <div class="row-head">Find<br>Fixed Point</div>
+      <a class="card" href="find-fixed-point/index.html">
+        <span class="card-label">Discrete &middot; Find Fixed Point</span>
+        <p>Automatically iterate the surprisal-of-surprisal chain to convergence, and see where repeated runs tend to land across bins (simplex, radial, scatter-matrix &amp; parallel-coordinates views).</p>
+        <span class="open">Open &rarr;</span>
+      </a>
       <a class="card" href="continuous-find-fixed-point/index.html">
-        <span class="tag">Continuous</span>
-        <h2>Find Fixed Point</h2>
+        <span class="card-label">Continuous &middot; Find Fixed Point</span>
         <p>Continuous-density version of the fixed-point search, with a convergence progression chart and an overlay of every converged density found.</p>
+        <span class="open">Open &rarr;</span>
       </a>
     </div>
 
