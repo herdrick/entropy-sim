@@ -410,8 +410,10 @@ function setCameraMode(mode) {
   orbitControls.target.copy(prevTarget);
   orbitControls.update();
 
-  const toggleBtn = document.getElementById('toggleCameraBtn');
-  if (toggleBtn) toggleBtn.textContent = mode === 'perspective' ? 'Perspective' : 'Orthographic';
+  const perspBtn = document.getElementById('perspectiveCameraBtn');
+  const orthoBtn = document.getElementById('orthographicCameraBtn');
+  if (perspBtn) perspBtn.classList.toggle('active', mode === 'perspective');
+  if (orthoBtn) orthoBtn.classList.toggle('active', mode === 'orthographic');
 }
 
 function initHistogram() {
@@ -440,9 +442,12 @@ function initHistogram() {
     orbitControls.update();
   });
 
-  // Perspective / orthographic toggle
-  document.getElementById('toggleCameraBtn').addEventListener('click', () => {
-    setCameraMode(cameraMode === 'perspective' ? 'orthographic' : 'perspective');
+  // Perspective / orthographic camera mode
+  document.getElementById('perspectiveCameraBtn').addEventListener('click', () => {
+    setCameraMode('perspective');
+  });
+  document.getElementById('orthographicCameraBtn').addEventListener('click', () => {
+    setCameraMode('orthographic');
   });
 
   // Scaffolding toggle

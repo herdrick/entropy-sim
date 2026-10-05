@@ -111,7 +111,7 @@
       margin-bottom: 4px;
     }
 
-    #resetCameraBtn, #toggleCameraBtn {
+    #resetCameraBtn, .camera-mode-btn {
       background: rgba(255, 255, 255, 0.08);
       border: 1px solid #555;
       border-radius: 4px;
@@ -119,16 +119,31 @@
       font-size: 14px;
       cursor: pointer;
       color: #ccc;
-      transition: background 0.2s;
+      transition: background 0.2s, border-color 0.2s;
     }
 
-    #toggleCameraBtn {
-      font-size: 0.65rem;
+    .camera-mode-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px 7px;
     }
 
-    #resetCameraBtn:hover, #toggleCameraBtn:hover {
+    .camera-mode-btn svg {
+      width: 16px;
+      height: 16px;
+      display: block;
+    }
+
+    #resetCameraBtn:hover, .camera-mode-btn:hover {
       background: rgba(255, 255, 255, 0.18);
       border-color: #e94560;
+    }
+
+    .camera-mode-btn.active {
+      background: rgba(233, 69, 96, 0.25);
+      border-color: #e94560;
+      color: #fff;
     }
 
     #controls3d label {
@@ -328,7 +343,16 @@
             <div id="controls3d">
               <div id="controls3d-btn-row">
                 <button id="resetCameraBtn" title="Reset camera">&#x21ba;</button>
-                <button id="toggleCameraBtn" title="Toggle perspective / orthographic">Perspective</button>
+                <button id="perspectiveCameraBtn" class="camera-mode-btn" title="Perspective camera">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round">
+                    <polygon points="3,2 13,2 15.5,14 0.5,14"/>
+                  </svg>
+                </button>
+                <button id="orthographicCameraBtn" class="camera-mode-btn" title="Orthographic camera">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round">
+                    <rect x="2" y="2" width="12" height="12"/>
+                  </svg>
+                </button>
               </div>
               <strong>3D Controls:</strong><br>
               <label><input type="checkbox" id="scaffolding-toggle" checked> Show scaffolding</label>
