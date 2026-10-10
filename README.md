@@ -8,7 +8,7 @@ This repository contains three independent applications. See the README of each.
 
 ## Apps
 
-### [new-distribution-with-each-event/](./new-distribution-with-each-event/README.md) — Interactive entropy simulator
+### [online-updating-models/](./online-updating-models/README.md) — Interactive entropy simulator
 
 Made to explore changes in surprisals and entropy as the distribution (under which the surprisals are calculated) changes.
 

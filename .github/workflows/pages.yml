@@ -5,9 +5,7 @@ on:
     branches: [main]
     paths:
       - "chained-surprisal-distributions/web/**"
-      - "new-distribution-with-each-event/index.html"
-      - "new-distribution-with-each-event/1-var/**"
-      - "new-distribution-with-each-event/2-var/**"
+      - "online-updating-models/**"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -30,11 +28,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Assemble site
         run: |
-          mkdir -p _site/new-distribution-with-each-event
+          mkdir -p _site
           cp -r chained-surprisal-distributions/web/. _site/
-          cp new-distribution-with-each-event/index.html _site/new-distribution-with-each-event/
-          cp -r new-distribution-with-each-event/1-var _site/new-distribution-with-each-event/
-          cp -r new-distribution-with-each-event/2-var _site/new-distribution-with-each-event/
+          cp -r online-updating-models _site/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
