@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - "chained-surprisal-distributions/web/**"
-      - "online-updating-models/**"
+      - "online-updated-surprisal-distribution/**"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -30,7 +30,7 @@ jobs:
         run: |
           mkdir -p _site
           cp -r chained-surprisal-distributions/web/. _site/
-          cp -r online-updating-models _site/
+          cp -r online-updated-surprisal-distribution _site/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
