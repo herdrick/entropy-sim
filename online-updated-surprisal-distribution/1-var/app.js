@@ -127,6 +127,117 @@ function sourceEntropy(key) {
 }
 
 // =============================================================================
+// Moments Math
+// =============================================================================
+
+// Fixed categorical colors, one per moment order (identity, never cycled/reassigned).
+// This palette's 8 validated slots are the practical ceiling on distinguishable lines;
+// nothing else in this file hardcodes an order limit, so raising the slider's max in
+// the HTML (index.html) is the only change needed to track more orders — colors just
+// wrap past 8 (see buildMomentDataset) rather than this file needing an update too.
+const MOMENT_COLORS = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767'];
+
+// Standard "nice numbers" rounding (Heckbert): picks a 1/2/5-times-a-power-of-ten
+// step sized to the data's span, then rounds the bounds outward to multiples of it —
+// so axis endpoints land on readable numbers instead of raw min-0.3 / max+0.3 values.
+// Collapses float noise (e.g. a value mathematically exactly 1, computed as
+// 1.0000000000000002 because it went through a sqrt-then-squared division) so it
+// doesn't push the bound below past a step boundary that Math.ceil then jumps a
+// full extra step beyond — 9 significant figures is far finer than any axis needs.
+function snapFloatNoise(x) {
+  return x === 0 ? 0 : Number(x.toPrecision(9));
+}
+
+function niceAxisBounds(rawMin, rawMax) {
+  let min = snapFloatNoise(rawMin);
+  let max = snapFloatNoise(rawMax);
+  if (min === max) { min -= 1; max += 1; }
+  const roughStep = (max - min) / 5;
+  const exponent = Math.floor(Math.log10(roughStep));
+  const fraction = roughStep / Math.pow(10, exponent);
+  const niceFraction = fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 5 ? 5 : 10;
+  const step = niceFraction * Math.pow(10, exponent);
+  return { min: Math.floor(min / step) * step, max: Math.ceil(max / step) * step };
+}
+
+function ordinal(n) {
+  if (n % 10 === 1 && n % 100 !== 11) return `${n}st`;
+  if (n % 10 === 2 && n % 100 !== 12) return `${n}nd`;
+  if (n % 10 === 3 && n % 100 !== 13) return `${n}rd`;
+  return `${n}th`;
+}
+
+// The selected type (raw/central/standardized) is already named by the radio buttons,
+// so labels don't repeat it — just the order, plus the conventional name where one exists.
+// Trivial constants are named explicitly (1st central moment is always exactly 0;
+// 2nd standardized moment is always exactly 1 — both are identities, not data).
+function momentLabel(type, order) {
+  // The 0th moment is trivially 1 for every type (it's just E[X^0] = 1, the
+  // normalization condition) — same identity regardless of raw/central/standardized.
+  if (order === 0) return '0th moment';
+  if (type === 'raw') return order === 1 ? 'Mean' : `${ordinal(order)} moment`;
+  if (type === 'central') {
+    if (order === 1) return `${ordinal(order)} moment (≡ 0)`;
+    if (order === 2) return 'Variance';
+    return `${ordinal(order)} moment`;
+  }
+  // standardized
+  if (order === 1) return `${ordinal(order)} moment (≡ 0)`;
+  if (order === 2) return `${ordinal(order)} moment (≡ 1)`;
+  if (order === 3) return 'Skewness';
+  if (order === 4) return 'Kurtosis';
+  return `${ordinal(order)} moment`;
+}
+
+function binomial(n, k) {
+  let r = 1;
+  for (let i = 0; i < k; i++) r = r * (n - i) / (i + 1);
+  return r;
+}
+
+// Central moment of order j from power sums about zero (powerSums[m] = sum of x^m, for m >= 1; the
+// "0th power sum" is just n, substituted directly since powerSums[0] is unused/unmaintained).
+function centralMoment(powerSums, n, mean, j) {
+  let m = 0;
+  for (let k = 0; k <= j; k++) {
+    const sk = k === 0 ? n : powerSums[k];
+    m += binomial(j, k) * Math.pow(-mean, j - k) * sk;
+  }
+  return m / n;
+}
+
+// Returns { raw, central, standardized } for moment order j, from power sums about zero.
+function computeMoment(powerSums, n, j) {
+  // Shortcut order 0: it's trivially 1 regardless of the data (E[X^0] = 1), and doesn't
+  // need powerSums[1]/[2] to exist — those might not be tracked if order 0 alone was requested.
+  if (j === 0) return { raw: 1, central: 1, standardized: 1 };
+  const mean = powerSums[1] / n;
+  const raw = powerSums[j] / n;
+  const central = centralMoment(powerSums, n, mean, j);
+  const variance = j === 2 ? central : centralMoment(powerSums, n, mean, 2);
+  const sigma = Math.sqrt(Math.max(variance, 0));
+  const standardized = sigma > 0 ? central / Math.pow(sigma, j) : 0;
+  return { raw, central, standardized };
+}
+
+// Recomputes the full history (all three types) for moment order `order` by replaying
+// `events` from scratch — used only when the slider requests an order for the first time.
+// Returns the running power sums too, so the caller can resume incremental updates from
+// the right total instead of restarting at 0 — they live in the same object as the
+// history they were computed from, so there's nothing else to keep in sync.
+function backfillMomentOrder(order, events) {
+  const history = { raw: [], central: [], standardized: [], powerSums: new Array(order + 1).fill(0) };
+  for (let i = 0; i < events.length; i++) {
+    for (let k = 1; k <= order; k++) history.powerSums[k] += Math.pow(events[i], k);
+    const { raw, central, standardized } = computeMoment(history.powerSums, i + 1, order);
+    history.raw.push(raw);
+    history.central.push(central);
+    history.standardized.push(standardized);
+  }
+  return history;
+}
+
+// =============================================================================
 // Application State
 // =============================================================================
 
@@ -140,6 +251,10 @@ const state = {
   entropyHistory: [],
   surprisalHistory: [],
   runningAvgSurprisal: [],
+  momentsCache: {}, // { order: { raw: [...], central: [...], standardized: [...], powerSums: [...] } } — its own keys ARE the tracked-order set
+  maxMomentOrder: 4, // highest order currently displayed
+  momentType: 'standardized',
+  logScale: false,
   timer: null,
 };
 
@@ -149,6 +264,18 @@ function resetData() {
   state.entropyHistory = [];
   state.surprisalHistory = [];
   state.runningAvgSurprisal = [];
+  state.momentsCache = {};
+}
+
+// Ensures every order from 0 up to `order` has a full, up-to-date history in momentsCache.
+// momentsCache's own keys are the source of truth for which orders are tracked — this
+// just fills in whichever ones in the range are missing; already-tracked orders are
+// simply skipped (they're kept up to date incrementally in addEvent).
+function ensureMomentsTrackedUpTo(order) {
+  for (let k = 0; k <= order; k++) {
+    if (k in state.momentsCache) continue;
+    state.momentsCache[k] = backfillMomentOrder(k, state.events);
+  }
 }
 
 // Changing the bin count re-bins all events seen so far into the new bins.
@@ -304,7 +431,7 @@ function initHistogram() {
 // Chart.js Charts (Panels 2 & 3)
 // =============================================================================
 
-let entropyChart, surprisalChart;
+let entropyChart, surprisalChart, momentsChart;
 
 function initCharts() {
   Chart.defaults.color = '#aaaaaa';
@@ -381,6 +508,37 @@ function initCharts() {
       plugins: { legend: { display: true, labels: { usePointStyle: true } } },
     },
   });
+
+  // Panel 4: Moments over time — datasets are built on demand in updateMomentsChart,
+  // not preallocated here, so the legend only ever lists orders currently shown.
+  momentsChart = new Chart(document.getElementById('moments-canvas'), {
+    type: 'line',
+    data: { labels: [], datasets: [] },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      scales: {
+        x: { title: { display: true, text: 'Events' }, min: 1, max: 10 },
+        y: { title: { display: true, text: 'Value' }, ticks: {} },
+      },
+      plugins: { legend: { display: true, labels: { usePointStyle: true } } },
+    },
+  });
+}
+
+// Color wraps past the palette's 8 validated slots rather than crashing — see the
+// MOMENT_COLORS comment for why this file has no hardcoded order ceiling to keep in sync.
+function buildMomentDataset(order) {
+  return {
+    label: momentLabel(state.momentType, order),
+    data: state.momentsCache[order][state.momentType],
+    borderColor: MOMENT_COLORS[order % MOMENT_COLORS.length],
+    borderWidth: 1.5,
+    pointRadius: 0,
+    pointStyle: 'line',
+    tension: 0,
+  };
 }
 
 // =============================================================================
@@ -397,6 +555,8 @@ function updateHistogram() {
     mesh.scale.y = Math.max(h, 0.0001);
     mesh.position.y = h / 2;
   }
+
+  document.getElementById('event-count-badge').textContent = `Events: ${state.events.length}`;
 }
 
 function updatePdfOverlay() {
@@ -477,28 +637,55 @@ function updateSurprisalChart() {
   surprisalChart.update('none');
 }
 
-function updateLatestEvent() {
-  const el = document.getElementById('latest-event-content');
+function updateMomentsChart() {
+  ensureMomentsTrackedUpTo(state.maxMomentOrder);
+
   const n = state.events.length;
-  if (n === 0) {
-    el.innerHTML = '<div class="event-stat">No events yet</div>';
-    return;
+  const labels = Array.from({ length: n }, (_, i) => i + 1);
+  momentsChart.data.labels = labels;
+
+  // Built fresh to exactly state.maxMomentOrder entries — nothing hidden-but-listed,
+  // so the legend never shows orders that aren't currently selected.
+  momentsChart.data.datasets = Array.from({ length: state.maxMomentOrder + 1 }, (_, i) => buildMomentDataset(i));
+  const visibleValues = momentsChart.data.datasets.flatMap(ds => ds.data);
+
+  momentsChart.options.scales.y.type = state.logScale ? 'logarithmic' : 'linear';
+  // Chart.js's default log-scale ticks print with ~13 decimal places; compact exponential
+  // notation is readable at the magnitudes moments actually span (1e-6 to 1e+2 or so).
+  momentsChart.options.scales.y.ticks.callback = state.logScale
+    ? (value) => Number(value).toExponential(0)
+    : undefined;
+
+  if (n > 0) {
+    momentsChart.options.scales.x.min = 1;
+    momentsChart.options.scales.x.max = Math.max(n, 10);
+    if (state.logScale) {
+      // Logarithmic scales can't represent zero/negative values (several moment types
+      // legitimately produce them — e.g. skewness, or the trivial ≡0 line); let
+      // Chart.js auto-range over whatever positive values are present instead of
+      // forcing a padded min/max the way the linear case does.
+      delete momentsChart.options.scales.y.min;
+      delete momentsChart.options.scales.y.max;
+    } else {
+      const bounds = niceAxisBounds(Math.min(...visibleValues), Math.max(...visibleValues));
+      momentsChart.options.scales.y.min = bounds.min;
+      momentsChart.options.scales.y.max = bounds.max;
+    }
+  } else {
+    momentsChart.options.scales.x.min = 1;
+    momentsChart.options.scales.x.max = 10;
+    delete momentsChart.options.scales.y.min;
+    delete momentsChart.options.scales.y.max;
   }
-  const v = state.events[n - 1];
-  const s = state.surprisalHistory[n - 1];
-  const h = state.entropyHistory[n - 1];
-  el.innerHTML =
-    `<div class="event-stat"><span class="event-label">Value:</span> ${v.toFixed(4)}</div>` +
-    `<div class="event-stat"><span class="event-label">Surprisal:</span> ${s.toFixed(2)} bits</div>` +
-    `<div class="event-stat"><span class="event-label">Entropy of model:</span> ${h.toFixed(7)} bits</div>` +
-    `<div class="event-stat"><span class="event-label">Events:</span> ${n}</div>`;
+
+  momentsChart.update('none');
 }
 
 function updateAll() {
   updateHistogram();
   updateEntropyChart();
   updateSurprisalChart();
-  updateLatestEvent();
+  updateMomentsChart();
   if (state.revealed) updatePdfOverlay();
 }
 
@@ -515,6 +702,18 @@ function addEvent(value) {
   state.surprisalHistory.push(s);
   const cumSum = state.surprisalHistory.reduce((a, b) => a + b, 0);
   state.runningAvgSurprisal.push(cumSum / state.surprisalHistory.length);
+
+  const n = state.events.length;
+  for (const key of Object.keys(state.momentsCache)) {
+    const k = Number(key);
+    const cache = state.momentsCache[k];
+    for (let m = 1; m <= k; m++) cache.powerSums[m] += Math.pow(value, m);
+    const { raw, central, standardized } = computeMoment(cache.powerSums, n, k);
+    cache.raw.push(raw);
+    cache.central.push(central);
+    cache.standardized.push(standardized);
+  }
+
   updateAll();
 }
 
@@ -580,6 +779,26 @@ function initControls() {
     binCountVal.textContent = n;
     setBinCount(n);
     updateAll();
+  });
+
+  const momentOrderSlider = document.getElementById('moment-order-slider');
+  const momentOrderVal = document.getElementById('moment-order-value');
+  momentOrderSlider.addEventListener('input', () => {
+    state.maxMomentOrder = parseInt(momentOrderSlider.value);
+    momentOrderVal.textContent = state.maxMomentOrder;
+    updateMomentsChart();
+  });
+
+  document.querySelectorAll('input[name="moment-type"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+      state.momentType = radio.value;
+      updateMomentsChart();
+    });
+  });
+
+  document.getElementById('moment-log-scale').addEventListener('change', (e) => {
+    state.logScale = e.target.checked;
+    updateMomentsChart();
   });
 
   document.querySelectorAll('input[name="source"]').forEach(radio => {

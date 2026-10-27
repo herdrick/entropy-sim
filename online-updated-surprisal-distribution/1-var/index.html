@@ -112,25 +112,77 @@
       border-color: #e94560;
     }
 
-    /* Latest event panel */
-    #latest-event-content {
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      height: 100%;
-      padding: 16px;
-    }
-
-    .event-stat {
+    #event-count-badge {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      background: rgba(22, 33, 62, 0.9);
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 0.75rem;
       font-family: 'SF Mono', 'Consolas', monospace;
-      font-size: 1rem;
-      margin: 6px 0;
+      z-index: 100;
       color: #ccc;
     }
 
-    .event-label {
-      color: #e94560;
-      font-weight: 600;
+    /* Moments panel */
+    .panel-body-column {
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Moments panel's own analysis controls — deliberately styled apart from the
+       sidebar, which only ever configures how data is generated, not how it's viewed. */
+    .moments-controls {
+      flex-shrink: 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 16px;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 5px;
+      padding: 5px 8px;
+      margin-bottom: 6px;
+      font-size: 0.7rem;
+      color: #aaa;
+    }
+
+    .moments-controls-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .moments-controls input[type="range"] {
+      width: 80px;
+      accent-color: #e94560;
+    }
+
+    .moment-type-group {
+      gap: 10px;
+    }
+
+    .moment-type-group label {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      cursor: pointer;
+    }
+
+    .moment-type-group input[type="radio"] {
+      accent-color: #e94560;
+    }
+
+    .moments-controls input[type="checkbox"] {
+      accent-color: #e94560;
+    }
+
+    .chart-wrapper {
+      flex: 1;
+      position: relative;
+      min-height: 0;
     }
 
     /* Sidebar */
@@ -263,6 +315,7 @@
         <div class="panel-body">
           <div id="histogram-container">
             <button id="resetCameraBtn" title="Reset camera">&#x21ba;</button>
+            <div id="event-count-badge">Events: 0</div>
           </div>
         </div>
       </div>
@@ -283,12 +336,26 @@
         </div>
       </div>
 
-      <!-- Panel 4: Latest event -->
+      <!-- Panel 4: Moments -->
       <div class="panel">
-        <div class="panel-title">Latest Event</div>
-        <div class="panel-body">
-          <div id="latest-event-content">
-            <div class="event-stat">No events yet</div>
+        <div class="panel-title">Moments</div>
+        <div class="panel-body panel-body-column">
+          <div class="moments-controls">
+            <div class="moments-controls-row">
+              <span>Up to order <span id="moment-order-value">4</span></span>
+              <input type="range" id="moment-order-slider" min="0" max="8" value="4">
+            </div>
+            <div class="moments-controls-row moment-type-group">
+              <label><input type="radio" name="moment-type" value="raw"> Raw</label>
+              <label><input type="radio" name="moment-type" value="central"> Central</label>
+              <label><input type="radio" name="moment-type" value="standardized" checked> Standardized</label>
+            </div>
+            <div class="moments-controls-row">
+              <label><input type="checkbox" id="moment-log-scale"> Log scale (y)</label>
+            </div>
+          </div>
+          <div class="chart-wrapper">
+            <canvas id="moments-canvas"></canvas>
           </div>
         </div>
       </div>
