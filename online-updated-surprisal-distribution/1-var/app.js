@@ -148,10 +148,19 @@ function snapFloatNoise(x) {
   return x === 0 ? 0 : Number(x.toPrecision(9));
 }
 
+// Padding the span by 10% before rounding guarantees visible headroom above/below the
+// data even when a value lands exactly on what would otherwise become the axis edge
+// (e.g. a line pinned at a trivial constant like 1) — without this, such a line would
+// hug the plot border instead of sitting visibly inside it.
+const AXIS_PADDING_FRACTION = 0.1;
+
 function niceAxisBounds(rawMin, rawMax) {
   let min = snapFloatNoise(rawMin);
   let max = snapFloatNoise(rawMax);
   if (min === max) { min -= 1; max += 1; }
+  const pad = (max - min) * AXIS_PADDING_FRACTION;
+  min -= pad;
+  max += pad;
   const roughStep = (max - min) / 5;
   const exponent = Math.floor(Math.log10(roughStep));
   const fraction = roughStep / Math.pow(10, exponent);
