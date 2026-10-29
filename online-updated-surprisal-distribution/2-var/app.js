@@ -34,7 +34,7 @@ const COLORS = {
 
 // Bars go translucent while the source distributions are shown, so the curves aren't
 // hidden inside opaque bar volumes.
-const BAR_OPACITY_WITH_SOURCES = 0.55;
+const BAR_OPACITY_WITH_SOURCES = 0.25;
 const LINE_OPACITY_WITH_SOURCES = 0.85;
 
 function getBin(value) {
