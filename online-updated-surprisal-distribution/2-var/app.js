@@ -826,6 +826,7 @@ function updatePdfOverlay() {
     const geo = new THREE.BufferGeometry().setFromPoints(pts);
     const mat = new THREE.LineBasicMaterial({
       color: parseInt(COLORS.highlight.slice(1), 16), linewidth: 2,
+      transparent: true, opacity: 0.8,
     });
     group.add(new THREE.Line(geo, mat));
   }
