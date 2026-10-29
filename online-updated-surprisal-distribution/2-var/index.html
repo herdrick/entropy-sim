@@ -121,8 +121,33 @@
 
     #controls3d-btn-row {
       display: flex;
+      align-items: center;
       gap: 4px;
       margin-bottom: 4px;
+    }
+
+    #opacity-control {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 4px 7px;
+      margin-right: 2px;
+    }
+
+    #opacity-control svg {
+      width: 14px;
+      height: 14px;
+      color: #ccc;
+      flex-shrink: 0;
+    }
+
+    #opacity-control input[type="range"] {
+      width: 48px;
+      accent-color: #e94560;
+      cursor: pointer;
     }
 
     #resetCameraBtn, .camera-mode-btn {
@@ -395,6 +420,12 @@
             <div id="event-count-badge">Events: 0</div>
             <div id="controls3d">
               <div id="controls3d-btn-row">
+                <div id="opacity-control" title="Bar transparency">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round">
+                    <path d="M8 1.5c0 0-5 6.2-5 9A5 5 0 0 0 13 10.5c0-2.8-5-9-5-9z"/>
+                  </svg>
+                  <input type="range" id="bar-opacity-slider" min="0" max="1" step="0.01" value="0.25">
+                </div>
                 <button id="resetCameraBtn" title="Reset camera">&#x21ba;</button>
                 <button id="perspectiveCameraBtn" class="camera-mode-btn" title="Perspective camera">
                   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round">

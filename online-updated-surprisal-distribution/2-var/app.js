@@ -33,9 +33,8 @@ const COLORS = {
 };
 
 // Bars go translucent while the source distributions are shown, so the curves aren't
-// hidden inside opaque bar volumes.
-const BAR_OPACITY_WITH_SOURCES = 0.25;
-const LINE_OPACITY_WITH_SOURCES = 0.85;
+// hidden inside opaque bar volumes. The amount is user-adjustable via the opacity slider.
+const DEFAULT_BAR_OPACITY_WITH_SOURCES = 0.25;
 
 function getBin(value) {
   if (value < BIN_EDGES[1]) return 0;
@@ -302,6 +301,7 @@ const state = {
   alphabetSize: 3,
   playing: false,
   sourcesHidden: true,
+  barOpacity: DEFAULT_BAR_OPACITY_WITH_SOURCES,
   speed: 10,
   events: [], // { value, catIdx }
   counts: makeCounts2d(3),
@@ -435,7 +435,7 @@ function buildHistogramGrid() {
       const mat = new THREE.MeshBasicMaterial({
         color: barColor.clone(),
         transparent: true,
-        opacity: state.sourcesHidden ? 1 : BAR_OPACITY_WITH_SOURCES,
+        opacity: state.sourcesHidden ? 1 : state.barOpacity,
       });
       const mesh = new THREE.Mesh(geo, mat);
 
@@ -796,7 +796,7 @@ function updateHistogram() {
 }
 
 function updateBarOpacity() {
-  const opacity = state.sourcesHidden ? 1 : BAR_OPACITY_WITH_SOURCES;
+  const opacity = state.sourcesHidden ? 1 : state.barOpacity;
   for (const row of barMeshes) {
     for (const mesh of row) {
       mesh.material.opacity = opacity;
@@ -826,7 +826,6 @@ function updatePdfOverlay() {
     const geo = new THREE.BufferGeometry().setFromPoints(pts);
     const mat = new THREE.LineBasicMaterial({
       color: parseInt(COLORS.highlight.slice(1), 16), linewidth: 2,
-      transparent: true, opacity: LINE_OPACITY_WITH_SOURCES,
     });
     group.add(new THREE.Line(geo, mat));
   }
@@ -1039,6 +1038,13 @@ function initControls() {
     buildHistogramGrid();
     updatePdfOverlay();
     updateAll();
+  });
+
+  const opacitySlider = document.getElementById('bar-opacity-slider');
+  opacitySlider.value = String(state.barOpacity);
+  opacitySlider.addEventListener('input', () => {
+    state.barOpacity = parseFloat(opacitySlider.value);
+    updateBarOpacity();
   });
 
   const hideCheckbox = document.getElementById('hide-distributions');
