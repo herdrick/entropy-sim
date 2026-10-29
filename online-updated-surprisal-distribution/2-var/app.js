@@ -32,6 +32,11 @@ const COLORS = {
   barEdge: 0xe94560,
 };
 
+// Bars go translucent while the source distributions are shown, so the curves aren't
+// hidden inside opaque bar volumes.
+const BAR_OPACITY_WITH_SOURCES = 0.55;
+const LINE_OPACITY_WITH_SOURCES = 0.85;
+
 function getBin(value) {
   if (value < BIN_EDGES[1]) return 0;
   if (value >= BIN_EDGES[N_BIN_EDGES - 1]) return TOTAL_BINS - 1;
@@ -427,7 +432,11 @@ function buildHistogramGrid() {
     const rowMeshes = [];
     for (let col = 0; col < TOTAL_BINS; col++) {
       const geo = new THREE.BoxGeometry(barW, 1, barD);
-      const mat = new THREE.MeshBasicMaterial({ color: barColor.clone() });
+      const mat = new THREE.MeshBasicMaterial({
+        color: barColor.clone(),
+        transparent: true,
+        opacity: state.sourcesHidden ? 1 : BAR_OPACITY_WITH_SOURCES,
+      });
       const mesh = new THREE.Mesh(geo, mat);
 
       mesh.position.set(xCenterForBin(col), 0, zCenterForCategory(row));
@@ -786,6 +795,15 @@ function updateHistogram() {
   document.getElementById('event-count-badge').textContent = `Events: ${state.events.length}`;
 }
 
+function updateBarOpacity() {
+  const opacity = state.sourcesHidden ? 1 : BAR_OPACITY_WITH_SOURCES;
+  for (const row of barMeshes) {
+    for (const mesh of row) {
+      mesh.material.opacity = opacity;
+    }
+  }
+}
+
 function updatePdfOverlay() {
   if (pdfLine) {
     scene.remove(pdfLine);
@@ -808,6 +826,7 @@ function updatePdfOverlay() {
     const geo = new THREE.BufferGeometry().setFromPoints(pts);
     const mat = new THREE.LineBasicMaterial({
       color: parseInt(COLORS.highlight.slice(1), 16), linewidth: 2,
+      transparent: true, opacity: LINE_OPACITY_WITH_SOURCES,
     });
     group.add(new THREE.Line(geo, mat));
   }
@@ -1027,6 +1046,7 @@ function initControls() {
     state.sourcesHidden = hideCheckbox.checked;
     renderDistributionLabels('source-radios', SOURCES);
     renderDistributionLabels('alphabet-radios', ALPHABETS);
+    updateBarOpacity();
     updatePdfOverlay();
     updateEntropyChart();
   });
