@@ -393,7 +393,6 @@ let pdfLine = null;
 let gridHelperObjects = [];
 let initialCameraPosition, initialCameraTarget;
 let cameraMode = 'perspective';
-let scaffoldingVisible = true;
 const ORTHO_VIEW_SIZE = 1.6;
 
 function makeTextSprite(text, { fontSize = 48, color = '#ccc', scale = 0.09 } = {}) {
@@ -546,12 +545,6 @@ function buildHistogramGrid() {
     }
   }
 
-  for (const obj of gridHelperObjects) obj.visible = scaffoldingVisible;
-}
-
-function setScaffoldingVisible(visible) {
-  scaffoldingVisible = visible;
-  for (const obj of gridHelperObjects) obj.visible = visible;
 }
 
 function makeCamera(mode, aspect) {
@@ -619,10 +612,6 @@ function initHistogram() {
 
   document.getElementById('perspectiveCameraBtn').addEventListener('click', () => setCameraMode('perspective'));
   document.getElementById('orthographicCameraBtn').addEventListener('click', () => setCameraMode('orthographic'));
-
-  document.getElementById('scaffolding-toggle').addEventListener('change', (e) => {
-    setScaffoldingVisible(e.target.checked);
-  });
 
   const ro = new ResizeObserver(() => {
     const w = container.offsetWidth;
