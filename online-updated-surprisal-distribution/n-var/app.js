@@ -1043,35 +1043,24 @@ function renderHistoSelectors() {
   const selA = document.getElementById('histo-var-a');
   const selB = document.getElementById('histo-var-b');
 
-  if (state.histoVarA === null || !findVariable(state.histoVarA)) {
-    state.histoVarA = state.variables.length > 0 ? state.variables[0].id : null;
-  }
+  if (state.histoVarA !== null && !findVariable(state.histoVarA)) state.histoVarA = null;
   if (state.histoVarB !== null && !findVariable(state.histoVarB)) state.histoVarB = null;
 
-  selA.innerHTML = '';
-  for (const v of state.variables) {
-    const opt = document.createElement('option');
-    opt.value = String(v.id);
-    opt.textContent = v.label;
-    if (v.id === state.histoVarA) opt.selected = true;
-    selA.appendChild(opt);
+  for (const [sel, selected] of [[selA, state.histoVarA], [selB, state.histoVarB]]) {
+    sel.innerHTML = '';
+    const noneOpt = document.createElement('option');
+    noneOpt.value = '';
+    noneOpt.textContent = '(none)';
+    sel.appendChild(noneOpt);
+    for (const v of state.variables) {
+      const opt = document.createElement('option');
+      opt.value = String(v.id);
+      opt.textContent = v.label;
+      if (v.id === selected) opt.selected = true;
+      sel.appendChild(opt);
+    }
+    if (selected === null) sel.value = '';
   }
-
-  selB.innerHTML = '';
-  const noneOpt = document.createElement('option');
-  noneOpt.value = '';
-  noneOpt.textContent = '(none)';
-  selB.appendChild(noneOpt);
-  for (const v of state.variables) {
-    const opt = document.createElement('option');
-    opt.value = String(v.id);
-    opt.textContent = v.label;
-    if (v.id === state.histoVarB) opt.selected = true;
-    selB.appendChild(opt);
-  }
-  if (state.histoVarB !== null && !findVariable(state.histoVarB)) selB.value = '';
-
-  selB.disabled = state.variables.length < 2;
 }
 
 function renderMomentVarSelector() {
@@ -1298,7 +1287,7 @@ function initControls() {
   });
 
   document.getElementById('histo-var-a').addEventListener('change', (e) => {
-    state.histoVarA = parseInt(e.target.value);
+    state.histoVarA = e.target.value === '' ? null : parseInt(e.target.value);
     renderHistoSelectors();
     rebuildHistoGrid();
     updateAll();
@@ -1340,7 +1329,9 @@ function initControls() {
 // =============================================================================
 
 function init() {
-  state.variables.push(createVariable('continuous'));
+  const v = createVariable('continuous');
+  state.variables.push(v);
+  state.histoVarA = v.id;
 
   renderVariableList();
   refreshVariableDependentUI();
