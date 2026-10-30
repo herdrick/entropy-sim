@@ -1218,7 +1218,9 @@ function buildVariableCard(v) {
 function addVariable(kind) {
   const v = createVariable(kind);
   state.variables.push(v);
-  if (state.variables.length === 2 && state.histoVarB === null) {
+  if (state.variables.length === 1 && state.histoVarA === null) {
+    state.histoVarA = v.id;
+  } else if (state.variables.length === 2 && state.histoVarB === null) {
     state.histoVarB = v.id;
   }
   renderVariableList();
