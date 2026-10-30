@@ -624,11 +624,6 @@ function initHistogram() {
     setScaffoldingVisible(e.target.checked);
   });
 
-  document.getElementById('controls3d-info-toggle').addEventListener('click', () => {
-    const info = document.getElementById('controls3d-info');
-    info.hidden = !info.hidden;
-  });
-
   const ro = new ResizeObserver(() => {
     const w = container.offsetWidth;
     const h = container.offsetHeight;
