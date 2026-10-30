@@ -103,40 +103,37 @@
       display: block;
       width: 100%;
       height: 100%;
+      cursor: grab;
+    }
+
+    #histogram-container canvas:active {
+      cursor: grabbing;
     }
 
     #controls3d {
       position: absolute;
       top: 6px;
       right: 6px;
-      background: rgba(22, 33, 62, 0.85);
-      padding: 6px 8px;
-      border-radius: 4px;
-      font-size: 0.65rem;
-      color: #999;
-      z-index: 100;
-      line-height: 1.5;
-    }
-
-    #event-count-badge {
-      position: absolute;
-      top: 6px;
-      left: 6px;
-      background: rgba(22, 33, 62, 0.9);
-      border: 1px solid #555;
-      border-radius: 4px;
-      padding: 4px 8px;
-      font-size: 0.75rem;
-      font-family: 'SF Mono', 'Consolas', monospace;
-      z-index: 100;
-      color: #ccc;
-    }
-
-    #controls3d-btn-row {
       display: flex;
       align-items: center;
       gap: 4px;
-      margin-bottom: 4px;
+      z-index: 100;
+    }
+
+    #histogram-title-controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    #event-count-badge {
+      background: #0a0f1e;
+      border: 1px solid #333;
+      border-radius: 4px;
+      padding: 3px 7px;
+      font-size: 0.75rem;
+      font-family: 'SF Mono', 'Consolas', monospace;
+      color: #ccc;
     }
 
     #opacity-control {
@@ -198,32 +195,14 @@
       color: #fff;
     }
 
-    #controls3d label {
-      cursor: pointer;
-      display: block;
-    }
-
-    #controls3d input[type="checkbox"] {
-      accent-color: #e94560;
-      vertical-align: middle;
-      margin-right: 2px;
-    }
-
     /* Histogram pair selector */
     #histo-pair-select {
-      position: absolute;
-      top: 6px;
-      left: 50%;
-      transform: translateX(-50%);
       display: flex;
       gap: 4px;
       align-items: center;
-      background: rgba(22, 33, 62, 0.9);
-      border: 1px solid #555;
-      border-radius: 4px;
-      padding: 4px 8px;
       font-size: 0.7rem;
-      z-index: 100;
+      font-weight: 400;
+      color: #999;
     }
 
     #histo-pair-select select {
@@ -525,9 +504,9 @@
     <div class="panels">
       <!-- Panel 1: Histogram -->
       <div class="panel">
-        <div class="panel-title">Live Histogram</div>
-        <div class="panel-body">
-          <div id="histogram-container">
+        <div class="panel-title">
+          Live Histogram
+          <div id="histogram-title-controls">
             <div id="event-count-badge">Events: 0</div>
             <div id="histo-pair-select">
               <span>Show:</span>
@@ -535,30 +514,27 @@
               <span>&times;</span>
               <select id="histo-var-b"></select>
             </div>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div id="histogram-container">
             <div id="controls3d">
-              <div id="controls3d-btn-row">
-                <div id="opacity-control" title="Bar transparency">
-                  <span>See-through</span>
-                  <input type="range" id="bar-opacity-slider" min="0" max="1" step="0.01" value="0.25">
-                  <span>Solid</span>
-                </div>
-                <button id="resetCameraBtn" title="Reset camera">&#x21ba;</button>
-                <button id="perspectiveCameraBtn" class="camera-mode-btn" title="Perspective camera">
-                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round">
-                    <polygon points="3,2 13,2 15.5,14 0.5,14"/>
-                  </svg>
-                </button>
-                <button id="orthographicCameraBtn" class="camera-mode-btn" title="Orthographic camera">
-                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round">
-                    <rect x="2" y="2" width="12" height="12"/>
-                  </svg>
-                </button>
+              <div id="opacity-control" title="Bar transparency">
+                <span>See-through</span>
+                <input type="range" id="bar-opacity-slider" min="0" max="1" step="0.01" value="0.25">
+                <span>Solid</span>
               </div>
-              <strong>3D Controls:</strong><br>
-              <label><input type="checkbox" id="scaffolding-toggle" checked> Show scaffolding</label>
-              &bull; Orbit: Left click + drag<br>
-              &bull; Zoom: Mouse wheel<br>
-              &bull; Pan: Right click + drag<br>
+              <button id="resetCameraBtn" title="Reset camera">&#x21ba;</button>
+              <button id="perspectiveCameraBtn" class="camera-mode-btn" title="Perspective camera">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round">
+                  <polygon points="3,2 13,2 15.5,14 0.5,14"/>
+                </svg>
+              </button>
+              <button id="orthographicCameraBtn" class="camera-mode-btn" title="Orthographic camera">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round">
+                  <rect x="2" y="2" width="12" height="12"/>
+                </svg>
+              </button>
             </div>
           </div>
         </div>
