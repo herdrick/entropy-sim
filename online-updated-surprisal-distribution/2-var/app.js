@@ -435,7 +435,7 @@ function buildHistogramGrid() {
       const mat = new THREE.MeshBasicMaterial({
         color: barColor.clone(),
         transparent: true,
-        opacity: state.sourcesHidden ? 1 : state.barOpacity,
+        opacity: state.barOpacity,
       });
       const mesh = new THREE.Mesh(geo, mat);
 
@@ -445,8 +445,14 @@ function buildHistogramGrid() {
       scene.add(mesh);
 
       const edgeGeo = new THREE.EdgesGeometry(geo);
-      const edgeMat = new THREE.LineBasicMaterial({ color: edgeColor.clone() });
-      mesh.add(new THREE.LineSegments(edgeGeo, edgeMat));
+      const edgeMat = new THREE.LineBasicMaterial({
+        color: edgeColor.clone(),
+        transparent: true,
+        opacity: state.barOpacity,
+      });
+      const edgeLines = new THREE.LineSegments(edgeGeo, edgeMat);
+      mesh.add(edgeLines);
+      mesh.userData.edgeLines = edgeLines;
 
       rowMeshes.push(mesh);
     }
@@ -796,10 +802,10 @@ function updateHistogram() {
 }
 
 function updateBarOpacity() {
-  const opacity = state.sourcesHidden ? 1 : state.barOpacity;
   for (const row of barMeshes) {
     for (const mesh of row) {
-      mesh.material.opacity = opacity;
+      mesh.material.opacity = state.barOpacity;
+      mesh.userData.edgeLines.material.opacity = state.barOpacity;
     }
   }
 }
