@@ -254,8 +254,8 @@ function createVariable(kind) {
   };
   if (kind === 'continuous') {
     v.source = 'Source A';
-    v.binCfg = makeBinConfig(20);
-    v.counts = new Array(20).fill(0);
+    v.binCfg = makeBinConfig(7);
+    v.counts = new Array(7).fill(0);
     v.momentsCache = {}; // { order: { raw, central, standardized, powerSums } }
   } else {
     v.alphabet = 'Alphabet A';
@@ -1047,9 +1047,6 @@ function renderHistoSelectors() {
     state.histoVarA = state.variables.length > 0 ? state.variables[0].id : null;
   }
   if (state.histoVarB !== null && !findVariable(state.histoVarB)) state.histoVarB = null;
-  if (state.histoVarB === null && state.variables.length === 2) {
-    state.histoVarB = state.variables.find(v => v.id !== state.histoVarA).id;
-  }
 
   selA.innerHTML = '';
   for (const v of state.variables) {
@@ -1230,6 +1227,9 @@ function buildVariableCard(v) {
 function addVariable(kind) {
   const v = createVariable(kind);
   state.variables.push(v);
+  if (state.variables.length === 2 && state.histoVarB === null) {
+    state.histoVarB = v.id;
+  }
   renderVariableList();
   refreshVariableDependentUI();
   rebuildHistoGrid();
