@@ -1047,6 +1047,9 @@ function renderHistoSelectors() {
     state.histoVarA = state.variables.length > 0 ? state.variables[0].id : null;
   }
   if (state.histoVarB !== null && !findVariable(state.histoVarB)) state.histoVarB = null;
+  if (state.histoVarB === null && state.variables.length === 2) {
+    state.histoVarB = state.variables.find(v => v.id !== state.histoVarA).id;
+  }
 
   selA.innerHTML = '';
   for (const v of state.variables) {
