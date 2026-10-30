@@ -425,8 +425,21 @@
 
     .variable-panel h2 {
       display: flex;
+      flex-wrap: wrap;
       justify-content: space-between;
       align-items: baseline;
+      row-gap: 2px;
+    }
+
+    .variable-title {
+      white-space: nowrap;
+    }
+
+    .variable-right-group {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      white-space: nowrap;
     }
 
     .variable-kind-tag {
@@ -434,6 +447,20 @@
       color: #888;
       text-transform: uppercase;
       letter-spacing: 0.04em;
+    }
+
+    .remove-var-btn {
+      background: none;
+      border: none;
+      color: #888;
+      font-size: 1rem;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0 2px;
+    }
+
+    .remove-var-btn:hover {
+      color: #e55;
     }
 
     .add-var-row {

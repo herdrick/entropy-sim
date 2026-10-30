@@ -1127,12 +1127,25 @@ function buildVariableCard(v) {
 
   const h2 = document.createElement('h2');
   const titleSpan = document.createElement('span');
+  titleSpan.className = 'variable-title';
   titleSpan.textContent = v.label;
+  h2.appendChild(titleSpan);
+
+  const rightGroup = document.createElement('span');
+  rightGroup.className = 'variable-right-group';
   const kindSpan = document.createElement('span');
   kindSpan.className = 'variable-kind-tag';
   kindSpan.textContent = v.kind;
-  h2.appendChild(titleSpan);
-  h2.appendChild(kindSpan);
+  rightGroup.appendChild(kindSpan);
+
+  const removeBtn = document.createElement('button');
+  removeBtn.className = 'remove-var-btn';
+  removeBtn.textContent = '×';
+  removeBtn.title = `Remove ${v.label}`;
+  removeBtn.addEventListener('click', () => removeVariable(v.id));
+  rightGroup.appendChild(removeBtn);
+
+  h2.appendChild(rightGroup);
   card.appendChild(h2);
 
   const distLabel = document.createElement('div');
@@ -1219,6 +1232,17 @@ function addVariable(kind) {
   if (state.variables.length === 2 && state.histoVarB === null) {
     state.histoVarB = v.id;
   }
+  renderVariableList();
+  refreshVariableDependentUI();
+  rebuildHistoGrid();
+  updateAll();
+}
+
+function removeVariable(id) {
+  state.variables = state.variables.filter(v => v.id !== id);
+  if (state.histoVarA === id) state.histoVarA = null;
+  if (state.histoVarB === id) state.histoVarB = null;
+  if (state.momentVarId === id) state.momentVarId = null;
   renderVariableList();
   refreshVariableDependentUI();
   rebuildHistoGrid();
