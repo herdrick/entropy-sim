@@ -1066,7 +1066,6 @@ function renderHistoSelectors() {
   noneOpt.textContent = '(none)';
   selB.appendChild(noneOpt);
   for (const v of state.variables) {
-    if (v.id === state.histoVarA) continue;
     const opt = document.createElement('option');
     opt.value = String(v.id);
     opt.textContent = v.label;
@@ -1300,7 +1299,6 @@ function initControls() {
 
   document.getElementById('histo-var-a').addEventListener('change', (e) => {
     state.histoVarA = parseInt(e.target.value);
-    if (state.histoVarA === state.histoVarB) state.histoVarB = null;
     renderHistoSelectors();
     rebuildHistoGrid();
     updateAll();
