@@ -3,7 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Entropy Simulator</title>
+  <title>Entropy Simulator (N-D)</title>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -11,115 +21,598 @@
       font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
       background: #1a1a2e;
       color: #ccc;
-      min-height: 100vh;
-      padding: 40px 20px;
-    }
-
-    .wrap {
-      max-width: 720px;
-      margin: 0 auto;
+      height: 100vh;
+      overflow: hidden;
     }
 
     h1 {
+      text-align: center;
+      padding: 8px 0 4px;
+      font-size: 1.2rem;
       color: #fff;
-      font-size: 1.8rem;
-      letter-spacing: 0.3px;
-      margin-bottom: 8px;
+      letter-spacing: 0.5px;
     }
 
-    .subtitle {
-      color: #9a9ab0;
-      font-size: 0.95rem;
-      line-height: 1.6;
-      margin-bottom: 32px;
-      max-width: 640px;
-      list-style: none;
+    .app-layout {
+      display: grid;
+      grid-template-columns: 1fr 240px;
+      grid-template-rows: 1fr;
+      height: calc(100vh - 40px);
+      gap: 8px;
+      padding: 0 8px 8px;
     }
 
-    .subtitle li {
-      position: relative;
-      padding-left: 16px;
-      margin-bottom: 6px;
-    }
-
-    .subtitle li::before {
-      content: "\2013";
-      position: absolute;
-      left: 0;
-      color: #e94560;
-    }
-
-    .cards {
+    .panels {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 14px;
+      grid-template-rows: 1fr 1fr;
+      gap: 8px;
+      min-height: 0;
     }
 
-    a.card {
+    .panel {
+      background: #16213e;
+      border-radius: 8px;
+      padding: 8px;
       display: flex;
       flex-direction: column;
-      background: #16213e;
-      border: 1px solid #22304f;
-      border-radius: 10px;
-      padding: 18px;
-      text-decoration: none;
-      color: inherit;
-      transition: border-color 0.15s, transform 0.15s, background 0.15s;
+      min-height: 0;
+      overflow: hidden;
     }
 
-    a.card:hover {
-      border-color: #e94560;
-      background: #1a2744;
-      transform: translateY(-2px);
-    }
-
-    .card h2 {
-      color: #fff;
-      font-size: 1rem;
-      margin-bottom: 8px;
-    }
-
-    .card p {
+    .panel-title {
       font-size: 0.85rem;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 4px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+    }
+
+    .panel-title select {
+      background: #0a0f1e;
+      border: 1px solid #333;
+      border-radius: 4px;
+      color: #ccc;
+      font-size: 0.7rem;
+      padding: 2px 4px;
+    }
+
+    .panel-body {
+      flex: 1;
+      position: relative;
+      min-height: 0;
+    }
+
+    .panel-body canvas {
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    /* Histogram (Three.js) container */
+    #histogram-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+
+    #histogram-container canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    #controls3d {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      background: rgba(22, 33, 62, 0.85);
+      padding: 6px 8px;
+      border-radius: 4px;
+      font-size: 0.65rem;
+      color: #999;
+      z-index: 100;
       line-height: 1.5;
+    }
+
+    #event-count-badge {
+      position: absolute;
+      top: 6px;
+      left: 6px;
+      background: rgba(22, 33, 62, 0.9);
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 0.75rem;
+      font-family: 'SF Mono', 'Consolas', monospace;
+      z-index: 100;
+      color: #ccc;
+    }
+
+    #controls3d-btn-row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-bottom: 4px;
+    }
+
+    #opacity-control {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 4px 7px;
+      margin-right: 2px;
+    }
+
+    #opacity-control span {
+      font-size: 0.6rem;
+      color: #999;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    #opacity-control input[type="range"] {
+      width: 40px;
+      accent-color: #e94560;
+      cursor: pointer;
+    }
+
+    #resetCameraBtn, .camera-mode-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 14px;
+      cursor: pointer;
+      color: #ccc;
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    .camera-mode-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px 7px;
+    }
+
+    .camera-mode-btn svg {
+      width: 16px;
+      height: 16px;
+      display: block;
+    }
+
+    #resetCameraBtn:hover, .camera-mode-btn:hover {
+      background: rgba(255, 255, 255, 0.18);
+      border-color: #e94560;
+    }
+
+    .camera-mode-btn.active {
+      background: rgba(233, 69, 96, 0.25);
+      border-color: #e94560;
+      color: #fff;
+    }
+
+    #controls3d label {
+      cursor: pointer;
+      display: block;
+    }
+
+    #controls3d input[type="checkbox"] {
+      accent-color: #e94560;
+      vertical-align: middle;
+      margin-right: 2px;
+    }
+
+    /* Histogram pair selector */
+    #histo-pair-select {
+      position: absolute;
+      top: 6px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      background: rgba(22, 33, 62, 0.9);
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 0.7rem;
+      z-index: 100;
+    }
+
+    #histo-pair-select select {
+      background: #0a0f1e;
+      border: 1px solid #333;
+      border-radius: 4px;
+      color: #ccc;
+      font-size: 0.7rem;
+      padding: 2px 4px;
+    }
+
+    /* Moments panel */
+    .panel-body-column {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .chart-wrapper {
+      flex: 1;
+      position: relative;
+      min-height: 0;
+    }
+
+    .moments-controls {
+      flex-shrink: 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 16px;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 5px;
+      padding: 5px 8px;
+      margin-bottom: 6px;
+      font-size: 0.7rem;
       color: #aaa;
+    }
+
+    .moments-controls-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .moments-controls input[type="range"] {
+      width: 80px;
+      accent-color: #e94560;
+    }
+
+    .moments-controls select {
+      background: #0a0f1e;
+      border: 1px solid #333;
+      border-radius: 4px;
+      color: #ccc;
+      font-size: 0.7rem;
+      padding: 2px 4px;
+    }
+
+    .moment-type-group {
+      gap: 10px;
+    }
+
+    .moment-type-group label {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      cursor: pointer;
+    }
+
+    .moment-type-group input[type="radio"] {
+      accent-color: #e94560;
+    }
+
+    .moments-controls input[type="checkbox"] {
+      accent-color: #e94560;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      background: #16213e;
+      border-radius: 8px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+    }
+
+    .sidebar h2 {
+      font-size: 0.9rem;
+      color: #fff;
+      margin-bottom: 2px;
+    }
+
+    .sidebar button {
+      width: 100%;
+      padding: 8px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+
+    #btn-play, #btn-reset, .add-var-btn {
+      background: #0f3460;
+      color: #fff;
+    }
+    #btn-play:hover, #btn-reset:hover, .add-var-btn:hover { background: #e94560; }
+
+    .btn-row {
+      display: flex;
+      gap: 6px;
+    }
+
+    .btn-row button {
       flex: 1;
     }
 
-    .card .open {
-      margin-top: 12px;
-      font-size: 0.78rem;
-      font-weight: 600;
-      color: #e94560;
+    /* Speed slider */
+    .slider-group label {
+      font-size: 0.8rem;
+      color: #aaa;
+      display: flex;
+      justify-content: space-between;
     }
 
-    @media (max-width: 560px) {
-      .cards {
-        grid-template-columns: 1fr;
-      }
+    .slider-group input[type="range"] {
+      width: 100%;
+      accent-color: #e94560;
+      margin-top: 4px;
     }
+
+    /* Source radios */
+    .source-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .source-group label {
+      font-size: 0.8rem;
+      cursor: pointer;
+      padding: 3px 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .source-group input[type="radio"] {
+      accent-color: #e94560;
+    }
+
+    .dist-glyph {
+      font-size: 1rem;
+      line-height: 1;
+      width: 1.2em;
+      text-align: center;
+      color: #e2d810;
+    }
+
+    .dist-sublabel {
+      font-size: 0.75rem;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 2px;
+    }
+
+    .hide-checkbox {
+      font-size: 0.8rem;
+      color: #ccc;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .hide-checkbox input[type="checkbox"] {
+      accent-color: #e94560;
+    }
+
+    /* Variable cards */
+    #variables-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .variable-panel {
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .variable-panel h2 {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+
+    .variable-kind-tag {
+      font-size: 0.65rem;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .add-var-row {
+      display: flex;
+      gap: 6px;
+    }
+
+    .add-var-btn {
+      font-size: 0.75rem;
+      padding: 7px;
+    }
+
+    /* Manual event */
+    .manual-event-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-bottom: 6px;
+    }
+
+    .manual-event-row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.75rem;
+    }
+
+    .manual-event-row span {
+      flex-shrink: 0;
+      color: #999;
+      width: 68px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .manual-event-row input, .manual-event-row select {
+      flex: 1;
+      background: #0a0f1e;
+      border: 1px solid #333;
+      border-radius: 4px;
+      color: #fff;
+      padding: 6px;
+      font-size: 0.8rem;
+      min-width: 0;
+    }
+
+    .manual-event-row input:focus {
+      outline: none;
+      border-color: #e94560;
+    }
+
+    #btn-add-event {
+      background: #0f3460;
+      color: #fff;
+    }
+    #btn-add-event:hover { background: #e94560; }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>Entropy Simulator</h1>
-    <ul class="subtitle">
-      <li>Samples an event from a source distribution, calculates that event's surprisal under the current model distribution, then updates the model to include the new event.</li>
-      <li>Watch how the model distribution — and its entropy — drift as more events are folded in.</li>
-    </ul>
+  <h1>Entropy Simulator (N-D)</h1>
+  <div class="app-layout">
+    <div class="panels">
+      <!-- Panel 1: Histogram -->
+      <div class="panel">
+        <div class="panel-title">Live Histogram</div>
+        <div class="panel-body">
+          <div id="histogram-container">
+            <div id="event-count-badge">Events: 0</div>
+            <div id="histo-pair-select">
+              <span>Show:</span>
+              <select id="histo-var-a"></select>
+              <span>&times;</span>
+              <select id="histo-var-b"></select>
+            </div>
+            <div id="controls3d">
+              <div id="controls3d-btn-row">
+                <div id="opacity-control" title="Bar transparency">
+                  <span>See-through</span>
+                  <input type="range" id="bar-opacity-slider" min="0" max="1" step="0.01" value="0.25">
+                  <span>Solid</span>
+                </div>
+                <button id="resetCameraBtn" title="Reset camera">&#x21ba;</button>
+                <button id="perspectiveCameraBtn" class="camera-mode-btn" title="Perspective camera">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round">
+                    <polygon points="3,2 13,2 15.5,14 0.5,14"/>
+                  </svg>
+                </button>
+                <button id="orthographicCameraBtn" class="camera-mode-btn" title="Orthographic camera">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round">
+                    <rect x="2" y="2" width="12" height="12"/>
+                  </svg>
+                </button>
+              </div>
+              <strong>3D Controls:</strong><br>
+              <label><input type="checkbox" id="scaffolding-toggle" checked> Show scaffolding</label>
+              &bull; Orbit: Left click + drag<br>
+              &bull; Zoom: Mouse wheel<br>
+              &bull; Pan: Right click + drag<br>
+            </div>
+          </div>
+        </div>
+      </div>
 
-    <div class="cards">
-      <a class="card" href="1-var/index.html">
-        <h2>Single Variable</h2>
-        <p>One random variable. Sample events, update the model after each one, and track surprisal and entropy over time.</p>
-        <span class="open">Open &rarr;</span>
-      </a>
-      <a class="card" href="2-var/index.html">
-        <h2>Two Variables</h2>
-        <p>Same idea extended to two random variables, with joint and marginal views of the evolving model.</p>
-        <span class="open">Open &rarr;</span>
-      </a>
+      <!-- Panel 2: Entropy over time (marginals) -->
+      <div class="panel">
+        <div class="panel-title">Entropy Over Time (marginals)</div>
+        <div class="panel-body">
+          <canvas id="entropy-canvas"></canvas>
+        </div>
+      </div>
+
+      <!-- Panel 3: Surprisal stream -->
+      <div class="panel">
+        <div class="panel-title">Surprisal Stream (sum of marginals)</div>
+        <div class="panel-body">
+          <canvas id="surprisal-canvas"></canvas>
+        </div>
+      </div>
+
+      <!-- Panel 4: Moments -->
+      <div class="panel">
+        <div class="panel-title">
+          Moments
+          <select id="moment-var-select"></select>
+        </div>
+        <div class="panel-body panel-body-column">
+          <div class="moments-controls">
+            <div class="moments-controls-row">
+              <span>Up to order <span id="moment-order-value">4</span></span>
+              <input type="range" id="moment-order-slider" min="0" max="8" value="4">
+            </div>
+            <div class="moments-controls-row moment-type-group">
+              <label><input type="radio" name="moment-type" value="raw"> Raw</label>
+              <label><input type="radio" name="moment-type" value="central"> Central</label>
+              <label><input type="radio" name="moment-type" value="standardized" checked> Standardized</label>
+            </div>
+            <div class="moments-controls-row">
+              <label><input type="checkbox" id="moment-log-scale"> Log scale (y)</label>
+            </div>
+          </div>
+          <div class="chart-wrapper">
+            <canvas id="moments-canvas"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Controls sidebar -->
+    <div class="sidebar">
+      <div class="btn-row">
+        <button id="btn-play">Play</button>
+        <button id="btn-reset">Reset</button>
+      </div>
+      <div class="slider-group">
+        <label>
+          <span id="speed-value">10</span> events/second
+        </label>
+        <input type="range" id="speed-slider" min="1" max="1000" value="10">
+      </div>
+
+      <label class="hide-checkbox">
+        <input type="checkbox" id="hide-distributions" checked> Hide distribution sources
+      </label>
+
+      <div id="variables-list"></div>
+
+      <div class="add-var-row">
+        <button class="add-var-btn" id="btn-add-continuous">+ Continuous var</button>
+        <button class="add-var-btn" id="btn-add-categorical">+ Categorical var</button>
+      </div>
+
+      <div>
+        <h2>Add Event</h2>
+        <div class="manual-event-list" id="manual-event-list"></div>
+        <button id="btn-add-event">Add</button>
+      </div>
     </div>
   </div>
+
+  <script type="module" src="app.js"></script>
 </body>
 </html>
