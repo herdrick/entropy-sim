@@ -134,8 +134,33 @@
 
     #controls3d-btn-row {
       display: flex;
+      align-items: center;
       gap: 4px;
       margin-bottom: 4px;
+    }
+
+    #opacity-control {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 4px 7px;
+      margin-right: 2px;
+    }
+
+    #opacity-control span {
+      font-size: 0.6rem;
+      color: #999;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    #opacity-control input[type="range"] {
+      width: 40px;
+      accent-color: #e94560;
+      cursor: pointer;
     }
 
     #resetCameraBtn, .camera-mode-btn {
@@ -485,6 +510,11 @@
             </div>
             <div id="controls3d">
               <div id="controls3d-btn-row">
+                <div id="opacity-control" title="Bar transparency">
+                  <span>See-through</span>
+                  <input type="range" id="bar-opacity-slider" min="0" max="1" step="0.01" value="0.25">
+                  <span>Solid</span>
+                </div>
                 <button id="resetCameraBtn" title="Reset camera">&#x21ba;</button>
                 <button id="perspectiveCameraBtn" class="camera-mode-btn" title="Perspective camera">
                   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round">

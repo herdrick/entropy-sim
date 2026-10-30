@@ -142,10 +142,19 @@ function snapFloatNoise(x) {
   return x === 0 ? 0 : Number(x.toPrecision(9));
 }
 
+// Padding the span by 10% before rounding guarantees visible headroom above/below the
+// data even when a value lands exactly on what would otherwise become the axis edge
+// (e.g. a line pinned at a trivial constant like 1) — without this, such a line would
+// hug the plot border instead of sitting visibly inside it.
+const AXIS_PADDING_FRACTION = 0.1;
+
 function niceAxisBounds(rawMin, rawMax) {
   let min = snapFloatNoise(rawMin);
   let max = snapFloatNoise(rawMax);
   if (min === max) { min -= 1; max += 1; }
+  const pad = (max - min) * AXIS_PADDING_FRACTION;
+  min -= pad;
+  max += pad;
   const roughStep = (max - min) / 5;
   const exponent = Math.floor(Math.log10(roughStep));
   const fraction = roughStep / Math.pow(10, exponent);
@@ -232,6 +241,9 @@ const COLORS = {
   barEdge: 0xe94560,
 };
 
+// Bars (and their edges) render at this opacity, user-adjustable via the opacity slider.
+const DEFAULT_BAR_OPACITY = 0.25;
+
 let nextVarId = 1;
 
 function createVariable(kind) {
@@ -259,6 +271,7 @@ const state = {
   events: [], // array of { [varId]: value } — value is a float for continuous, a category index for categorical
   playing: false,
   sourcesHidden: true,
+  barOpacity: DEFAULT_BAR_OPACITY,
   speed: 10,
   surprisalHistory: [],
   runningAvgSurprisal: [],
@@ -432,7 +445,11 @@ function buildHistogramGrid() {
     const rowMeshes = [];
     for (let col = 0; col < axisA.size; col++) {
       const geo = new THREE.BoxGeometry(axisA.barSize, 1, axisB.barSize);
-      const mat = new THREE.MeshBasicMaterial({ color: barColor.clone() });
+      const mat = new THREE.MeshBasicMaterial({
+        color: barColor.clone(),
+        transparent: true,
+        opacity: state.barOpacity,
+      });
       const mesh = new THREE.Mesh(geo, mat);
 
       mesh.position.set(axisA.posFor(col), 0, axisB.posFor(row));
@@ -441,8 +458,14 @@ function buildHistogramGrid() {
       scene.add(mesh);
 
       const edgeGeo = new THREE.EdgesGeometry(geo);
-      const edgeMat = new THREE.LineBasicMaterial({ color: edgeColor.clone() });
-      mesh.add(new THREE.LineSegments(edgeGeo, edgeMat));
+      const edgeMat = new THREE.LineBasicMaterial({
+        color: edgeColor.clone(),
+        transparent: true,
+        opacity: state.barOpacity,
+      });
+      const edgeLines = new THREE.LineSegments(edgeGeo, edgeMat);
+      mesh.add(edgeLines);
+      mesh.userData.edgeLines = edgeLines;
 
       rowMeshes.push(mesh);
     }
@@ -741,6 +764,15 @@ function updateHistogram() {
   document.getElementById('event-count-badge').textContent = `Events: ${state.events.length}`;
 }
 
+function updateBarOpacity() {
+  for (const row of barMeshes) {
+    for (const mesh of row) {
+      mesh.material.opacity = state.barOpacity;
+      mesh.userData.edgeLines.material.opacity = state.barOpacity;
+    }
+  }
+}
+
 function updatePdfOverlay() {
   if (pdfLine) {
     scene.remove(pdfLine);
@@ -774,7 +806,10 @@ function updatePdfOverlay() {
       pts.push(new THREE.Vector3(x, y, z));
     }
     const geo = new THREE.BufferGeometry().setFromPoints(pts);
-    const mat = new THREE.LineBasicMaterial({ color: parseInt(COLORS.highlight.slice(1), 16), linewidth: 2 });
+    const mat = new THREE.LineBasicMaterial({
+      color: parseInt(COLORS.highlight.slice(1), 16), linewidth: 2,
+      transparent: true, opacity: 0.8,
+    });
     group.add(new THREE.Line(geo, mat));
     if (rows === 1) break;
   }
@@ -1210,6 +1245,13 @@ function initControls() {
   document.getElementById('btn-reset').addEventListener('click', () => {
     resetData();
     updateAll();
+  });
+
+  const opacitySlider = document.getElementById('bar-opacity-slider');
+  opacitySlider.value = String(state.barOpacity);
+  opacitySlider.addEventListener('input', () => {
+    state.barOpacity = parseFloat(opacitySlider.value);
+    updateBarOpacity();
   });
 
   const hideCheckbox = document.getElementById('hide-distributions');
