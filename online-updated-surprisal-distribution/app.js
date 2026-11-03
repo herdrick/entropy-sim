@@ -364,21 +364,19 @@ function axisDescriptor(v) {
   };
 }
 
-// Slot A always drives the x-axis and must be set whenever any variable is
-// selected; slot B is the optional depth axis. Keeps that invariant after any
-// change to either slot, so a lone selected variable can't end up stuck in
-// slot B with slot A empty (which made every bin read zero).
-function normalizeHistoVars() {
-  if (state.histoVarA === null && state.histoVarB !== null) {
-    state.histoVarA = state.histoVarB;
-    state.histoVarB = null;
-  }
+// The grid-building code always draws its real (ticked, labeled) axis as
+// "A" and its optional depth axis as "B". The two dropdowns let you put your
+// only variable in either slot, so this maps whatever's selected onto that
+// shape without touching state.histoVarA/B — your dropdown picks stay as you
+// left them even when, e.g., slot A is None and slot B holds the one variable.
+function getHistoAxisVars() {
+  const a = findVariable(state.histoVarA);
+  const b = findVariable(state.histoVarB);
+  return a ? { varA: a, varB: b } : { varA: b, varB: null };
 }
 
 function rebuildHistoGrid() {
-  normalizeHistoVars();
-  const varA = findVariable(state.histoVarA);
-  const varB = findVariable(state.histoVarB);
+  const { varA, varB } = getHistoAxisVars();
   const axisA = axisDescriptor(varA);
   const axisB = axisDescriptor(varB);
 
@@ -444,8 +442,7 @@ function clearHistogramGrid() {
 function buildHistogramGrid() {
   clearHistogramGrid();
 
-  const varA = findVariable(state.histoVarA);
-  const varB = findVariable(state.histoVarB);
+  const { varA, varB } = getHistoAxisVars();
   const axisA = axisDescriptor(varA);
   const axisB = axisDescriptor(varB);
 
@@ -781,8 +778,7 @@ function updatePdfOverlay() {
   }
   if (state.sourcesHidden) return;
 
-  const varA = findVariable(state.histoVarA);
-  const varB = findVariable(state.histoVarB);
+  const { varA, varB } = getHistoAxisVars();
   if (!varA || varA.kind !== 'continuous') return;
 
   const group = new THREE.Group();
@@ -954,8 +950,7 @@ function addEvent(valuesByVarId) {
   const cumSum = state.surprisalHistory.reduce((a, b) => a + b, 0);
   state.runningAvgSurprisal.push(cumSum / state.surprisalHistory.length);
 
-  const varA = findVariable(state.histoVarA);
-  const varB = findVariable(state.histoVarB);
+  const { varA, varB } = getHistoAxisVars();
   if (varA && varA.id in valuesByVarId && (!varB || varB.id in valuesByVarId)) {
     const axisA = axisDescriptor(varA);
     const axisB = axisDescriptor(varB);
@@ -1246,7 +1241,6 @@ function removeVariable(id) {
   if (state.histoVarA === id) state.histoVarA = null;
   if (state.histoVarB === id) state.histoVarB = null;
   if (state.momentVarId === id) state.momentVarId = null;
-  normalizeHistoVars();
   renderVariableList();
   refreshVariableDependentUI();
   rebuildHistoGrid();
@@ -1316,7 +1310,6 @@ function initControls() {
 
   document.getElementById('histo-var-a').addEventListener('change', (e) => {
     state.histoVarA = e.target.value === '' ? null : parseInt(e.target.value);
-    normalizeHistoVars();
     renderHistoSelectors();
     rebuildHistoGrid();
     updateAll();
@@ -1324,8 +1317,6 @@ function initControls() {
 
   document.getElementById('histo-var-b').addEventListener('change', (e) => {
     state.histoVarB = e.target.value === '' ? null : parseInt(e.target.value);
-    normalizeHistoVars();
-    renderHistoSelectors();
     rebuildHistoGrid();
     updateAll();
   });
