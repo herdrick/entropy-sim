@@ -364,9 +364,19 @@ function axisDescriptor(v) {
   };
 }
 
+// The grid-building code always draws its real (ticked, labeled) axis as
+// "A" and its optional depth axis as "B". The two dropdowns let you put your
+// only variable in either slot, so this maps whatever's selected onto that
+// shape without touching state.histoVarA/B — your dropdown picks stay as you
+// left them even when, e.g., slot A is None and slot B holds the one variable.
+function getHistoAxisVars() {
+  const a = findVariable(state.histoVarA);
+  const b = findVariable(state.histoVarB);
+  return a ? { varA: a, varB: b } : { varA: b, varB: null };
+}
+
 function rebuildHistoGrid() {
-  const varA = findVariable(state.histoVarA);
-  const varB = findVariable(state.histoVarB);
+  const { varA, varB } = getHistoAxisVars();
   const axisA = axisDescriptor(varA);
   const axisB = axisDescriptor(varB);
 
@@ -457,8 +467,7 @@ function clearHistogramGrid() {
 function buildHistogramGrid() {
   clearHistogramGrid();
 
-  const varA = findVariable(state.histoVarA);
-  const varB = findVariable(state.histoVarB);
+  const { varA, varB } = getHistoAxisVars();
   const axisA = axisDescriptor(varA);
   const axisB = axisDescriptor(varB);
   const is2D = !varB;
@@ -798,8 +807,7 @@ function updatePdfOverlay() {
   }
   if (state.sourcesHidden) return;
 
-  const varA = findVariable(state.histoVarA);
-  const varB = findVariable(state.histoVarB);
+  const { varA, varB } = getHistoAxisVars();
   if (!varA || varA.kind !== 'continuous') return;
 
   const group = new THREE.Group();
@@ -971,8 +979,7 @@ function addEvent(valuesByVarId) {
   const cumSum = state.surprisalHistory.reduce((a, b) => a + b, 0);
   state.runningAvgSurprisal.push(cumSum / state.surprisalHistory.length);
 
-  const varA = findVariable(state.histoVarA);
-  const varB = findVariable(state.histoVarB);
+  const { varA, varB } = getHistoAxisVars();
   if (varA && varA.id in valuesByVarId && (!varB || varB.id in valuesByVarId)) {
     const axisA = axisDescriptor(varA);
     const axisB = axisDescriptor(varB);
