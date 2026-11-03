@@ -395,6 +395,31 @@ let initialCameraPosition, initialCameraTarget;
 let cameraMode = 'perspective';
 const ORTHO_VIEW_SIZE = 1.6;
 
+// Tracks whether the histogram is currently showing the flat single-variable
+// view (varB === null) so the camera/UI reset below only fires on an actual
+// 2D/3D transition, not on every unrelated rebuild (e.g. switching which
+// variable fills slot A while B stays set).
+let histoIs2D = null;
+
+// With only one variable selected, drop the depth axis and camera-pair
+// controls entirely and look straight on, like the old single-variable app,
+// instead of showing a single row of 3D bars from an angle.
+function applyHistogramCameraMode(is2D) {
+  if (is2D === histoIs2D) return;
+  histoIs2D = is2D;
+
+  document.getElementById('histogram-container').classList.toggle('is-2d', is2D);
+
+  if (is2D) {
+    setCameraMode('orthographic', new THREE.Vector3(0.5, 0.15, 5), new THREE.Vector3(0.5, 0.15, 0));
+  } else {
+    setCameraMode('perspective', new THREE.Vector3(1.6, 1.1, 1.9), new THREE.Vector3(0.5, 0.15, 0.5));
+  }
+
+  initialCameraPosition = camera.position.clone();
+  initialCameraTarget = orbitControls.target.clone();
+}
+
 function makeTextSprite(text, { fontSize = 48, color = '#ccc', scale = 0.09 } = {}) {
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
@@ -436,14 +461,18 @@ function buildHistogramGrid() {
   const varB = findVariable(state.histoVarB);
   const axisA = axisDescriptor(varA);
   const axisB = axisDescriptor(varB);
+  const is2D = !varB;
+
+  applyHistogramCameraMode(is2D);
 
   const barColor = new THREE.Color(COLORS.barFill);
   const edgeColor = new THREE.Color(COLORS.barEdge);
+  const barDepth = is2D ? 0.001 : axisB.barSize;
 
   for (let row = 0; row < axisB.size; row++) {
     const rowMeshes = [];
     for (let col = 0; col < axisA.size; col++) {
-      const geo = new THREE.BoxGeometry(axisA.barSize, 1, axisB.barSize);
+      const geo = new THREE.BoxGeometry(axisA.barSize, 1, barDepth);
       const mat = new THREE.MeshBasicMaterial({
         color: barColor.clone(),
         transparent: true,
@@ -557,12 +586,12 @@ function makeCamera(mode, aspect) {
   return new THREE.PerspectiveCamera(45, aspect, 0.01, 20);
 }
 
-function setCameraMode(mode) {
+function setCameraMode(mode, overridePosition, overrideTarget) {
   cameraMode = mode;
   const container = document.getElementById('histogram-container');
   const aspect = container.offsetWidth / container.offsetHeight;
-  const prevPosition = camera ? camera.position.clone() : new THREE.Vector3(1.6, 1.1, 1.9);
-  const prevTarget = orbitControls ? orbitControls.target.clone() : new THREE.Vector3(0.5, 0.15, 0.5);
+  const prevPosition = overridePosition || (camera ? camera.position.clone() : new THREE.Vector3(1.6, 1.1, 1.9));
+  const prevTarget = overrideTarget || (orbitControls ? orbitControls.target.clone() : new THREE.Vector3(0.5, 0.15, 0.5));
 
   if (orbitControls) orbitControls.dispose();
 
