@@ -165,6 +165,23 @@
       display: none;
     }
 
+    #histo-tooltip {
+      position: absolute;
+      pointer-events: none;
+      background: rgba(10, 15, 30, 0.92);
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 0.75rem;
+      font-family: 'SF Mono', 'Consolas', monospace;
+      color: #eee;
+      white-space: nowrap;
+      z-index: 200;
+      transform: translate(-50%, -100%);
+      margin-top: -8px;
+      display: none;
+    }
+
     #resetCameraBtn, .camera-mode-btn {
       background: rgba(255, 255, 255, 0.08);
       border: 1px solid #555;
@@ -523,6 +540,7 @@
         </div>
         <div class="panel-body">
           <div id="histogram-container">
+            <div id="histo-tooltip"></div>
             <div id="controls3d">
               <div id="opacity-control" title="Bar transparency">
                 <span>See-through</span>
@@ -555,7 +573,10 @@
 
       <!-- Panel 3: Surprisal stream -->
       <div class="panel">
-        <div class="panel-title">Surprisal Stream (sum of marginals)</div>
+        <div class="panel-title">
+          Surprisal Stream
+          <select id="surprisal-var-select"></select>
+        </div>
         <div class="panel-body">
           <canvas id="surprisal-canvas"></canvas>
         </div>

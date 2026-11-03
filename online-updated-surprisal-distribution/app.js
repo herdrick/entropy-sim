@@ -251,6 +251,7 @@ function createVariable(kind) {
     id: nextVarId++,
     kind, // 'continuous' | 'categorical'
     entropyHistory: new Array(state.events.length).fill(null),
+    surprisalHistory: new Array(state.events.length).fill(null),
   };
   if (kind === 'continuous') {
     v.source = 'Source A';
@@ -274,11 +275,11 @@ const state = {
   barOpacity: DEFAULT_BAR_OPACITY,
   speed: 10,
   surprisalHistory: [],
-  runningAvgSurprisal: [],
   histoVarA: null,
   histoVarB: null,
   histoCounts2d: [[0]], // [row][col], row = axis B, col = axis A
   momentVarId: null,
+  surprisalVarId: null, // null = sum of all marginals
   maxMomentOrder: 4,
   momentType: 'standardized',
   logScale: false,
@@ -302,9 +303,9 @@ function ownValues(v) {
 function resetData() {
   state.events = [];
   state.surprisalHistory = [];
-  state.runningAvgSurprisal = [];
   for (const v of state.variables) {
     v.entropyHistory = [];
+    v.surprisalHistory = [];
     v.counts = v.kind === 'continuous' ? new Array(v.binCfg.totalBins).fill(0) : new Array(v.alphabetSize).fill(0);
     if (v.kind === 'continuous') v.momentsCache = {};
   }
@@ -875,14 +876,30 @@ function updateEntropyChart() {
 }
 
 function updateSurprisalChart() {
-  const n = state.surprisalHistory.length;
-  surprisalChart.data.datasets[0].data = state.surprisalHistory.map((s, i) => ({ x: i + 1, y: s }));
-  surprisalChart.data.datasets[1].data = state.runningAvgSurprisal.map((a, i) => ({ x: i + 1, y: a }));
+  let points;
+  if (state.surprisalVarId === null) {
+    points = state.surprisalHistory.map((s, i) => ({ x: i + 1, y: s }));
+  } else {
+    const v = findVariable(state.surprisalVarId);
+    points = v.surprisalHistory
+      .map((s, i) => ({ x: i + 1, y: s }))
+      .filter(p => p.y !== null);
+  }
 
-  if (n > 0) {
+  let cumSum = 0;
+  const avgPoints = points.map((p, i) => {
+    cumSum += p.y;
+    return { x: p.x, y: cumSum / (i + 1) };
+  });
+
+  surprisalChart.data.datasets[0].data = points;
+  surprisalChart.data.datasets[1].data = avgPoints;
+
+  const n = state.events.length;
+  if (points.length > 0) {
     surprisalChart.options.scales.x.min = 1;
     surprisalChart.options.scales.x.max = Math.max(n, 10);
-    surprisalChart.options.scales.y.max = Math.max(...state.surprisalHistory, 1) * 1.2;
+    surprisalChart.options.scales.y.max = Math.max(...points.map(p => p.y), 1) * 1.2;
   } else {
     surprisalChart.options.scales.x.min = 1;
     surprisalChart.options.scales.x.max = 10;
@@ -957,7 +974,9 @@ function addEvent(valuesByVarId) {
   for (const v of state.variables) {
     const val = valuesByVarId[v.id];
     const idx = v.kind === 'continuous' ? getBin(v.binCfg, val) : val;
-    jointSurprisal += marginalSurprisal(v.counts, idx);
+    const s = marginalSurprisal(v.counts, idx);
+    jointSurprisal += s;
+    v.surprisalHistory.push(s);
     v.counts[idx] += 1;
     v.entropyHistory.push(entropyOfCounts(v.counts));
 
@@ -976,8 +995,6 @@ function addEvent(valuesByVarId) {
   }
 
   state.surprisalHistory.push(jointSurprisal);
-  const cumSum = state.surprisalHistory.reduce((a, b) => a + b, 0);
-  state.runningAvgSurprisal.push(cumSum / state.surprisalHistory.length);
 
   const { varA, varB } = getHistoAxisVars();
   if (varA && varA.id in valuesByVarId && (!varB || varB.id in valuesByVarId)) {
@@ -1061,6 +1078,7 @@ function renderAllDistributionLabels() {
 function refreshVariableDependentUI() {
   renderHistoSelectors();
   renderMomentVarSelector();
+  renderSurprisalVarSelector();
   renderManualEventInputs();
 }
 
@@ -1102,6 +1120,28 @@ function renderMomentVarSelector() {
     opt.value = String(v.id);
     opt.textContent = v.label;
     if (v.id === state.momentVarId) opt.selected = true;
+    sel.appendChild(opt);
+  }
+}
+
+function renderSurprisalVarSelector() {
+  const sel = document.getElementById('surprisal-var-select');
+
+  if (state.surprisalVarId !== null && !findVariable(state.surprisalVarId)) {
+    state.surprisalVarId = null;
+  }
+
+  sel.innerHTML = '';
+  const allOpt = document.createElement('option');
+  allOpt.value = '';
+  allOpt.textContent = 'Sum of all';
+  if (state.surprisalVarId === null) allOpt.selected = true;
+  sel.appendChild(allOpt);
+  for (const v of state.variables) {
+    const opt = document.createElement('option');
+    opt.value = String(v.id);
+    opt.textContent = v.label;
+    if (v.id === state.surprisalVarId) opt.selected = true;
     sel.appendChild(opt);
   }
 }
@@ -1270,6 +1310,7 @@ function removeVariable(id) {
   if (state.histoVarA === id) state.histoVarA = null;
   if (state.histoVarB === id) state.histoVarB = null;
   if (state.momentVarId === id) state.momentVarId = null;
+  if (state.surprisalVarId === id) state.surprisalVarId = null;
   renderVariableList();
   refreshVariableDependentUI();
   rebuildHistoGrid();
@@ -1335,6 +1376,11 @@ function initControls() {
   document.getElementById('moment-var-select').addEventListener('change', (e) => {
     state.momentVarId = parseInt(e.target.value);
     updateMomentsChart();
+  });
+
+  document.getElementById('surprisal-var-select').addEventListener('change', (e) => {
+    state.surprisalVarId = e.target.value === '' ? null : parseInt(e.target.value);
+    updateSurprisalChart();
   });
 
   document.getElementById('histo-var-a').addEventListener('change', (e) => {
