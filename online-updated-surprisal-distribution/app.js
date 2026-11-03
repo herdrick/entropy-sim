@@ -364,7 +364,19 @@ function axisDescriptor(v) {
   };
 }
 
+// Slot A always drives the x-axis and must be set whenever any variable is
+// selected; slot B is the optional depth axis. Keeps that invariant after any
+// change to either slot, so a lone selected variable can't end up stuck in
+// slot B with slot A empty (which made every bin read zero).
+function normalizeHistoVars() {
+  if (state.histoVarA === null && state.histoVarB !== null) {
+    state.histoVarA = state.histoVarB;
+    state.histoVarB = null;
+  }
+}
+
 function rebuildHistoGrid() {
+  normalizeHistoVars();
   const varA = findVariable(state.histoVarA);
   const varB = findVariable(state.histoVarB);
   const axisA = axisDescriptor(varA);
@@ -1234,6 +1246,7 @@ function removeVariable(id) {
   if (state.histoVarA === id) state.histoVarA = null;
   if (state.histoVarB === id) state.histoVarB = null;
   if (state.momentVarId === id) state.momentVarId = null;
+  normalizeHistoVars();
   renderVariableList();
   refreshVariableDependentUI();
   rebuildHistoGrid();
@@ -1303,6 +1316,7 @@ function initControls() {
 
   document.getElementById('histo-var-a').addEventListener('change', (e) => {
     state.histoVarA = e.target.value === '' ? null : parseInt(e.target.value);
+    normalizeHistoVars();
     renderHistoSelectors();
     rebuildHistoGrid();
     updateAll();
@@ -1310,6 +1324,8 @@ function initControls() {
 
   document.getElementById('histo-var-b').addEventListener('change', (e) => {
     state.histoVarB = e.target.value === '' ? null : parseInt(e.target.value);
+    normalizeHistoVars();
+    renderHistoSelectors();
     rebuildHistoGrid();
     updateAll();
   });
