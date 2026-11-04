@@ -827,17 +827,15 @@ function initCharts() {
   });
 }
 
-function buildMomentDataset(v, order, hiddenByLabel) {
-  const label = momentLabel(state.momentType, order);
+function buildMomentDataset(v, order) {
   return {
-    label,
+    label: momentLabel(state.momentType, order),
     data: v.momentsCache[order][state.momentType],
     borderColor: MOMENT_COLORS[order % MOMENT_COLORS.length],
     borderWidth: 1.5,
     pointRadius: 0,
     pointStyle: 'line',
     tension: 0,
-    hidden: hiddenByLabel && hiddenByLabel.get(label),
   };
 }
 
@@ -913,10 +911,34 @@ function updatePdfOverlay() {
   scene.add(pdfLine);
 }
 
+// Chart.js tracks legend-click visibility per dataset *meta* (keyed by index), not on
+// the dataset object itself. Since the entropy/moments charts replace data.datasets with
+// fresh objects on every update, that meta gets reset to visible unless we reapply it
+// after the new datasets are registered (a second update() is required for it to stick).
+function captureHiddenLabels(chart) {
+  const hidden = new Set();
+  chart.data.datasets.forEach((ds, i) => {
+    if (!chart.isDatasetVisible(i)) hidden.add(ds.label);
+  });
+  return hidden;
+}
+
+function restoreHiddenLabels(chart, hiddenLabels) {
+  if (hiddenLabels.size === 0) return;
+  let changed = false;
+  chart.data.datasets.forEach((ds, i) => {
+    if (hiddenLabels.has(ds.label)) {
+      chart.getDatasetMeta(i).hidden = true;
+      changed = true;
+    }
+  });
+  if (changed) chart.update('none');
+}
+
 function updateEntropyChart() {
   const n = state.events.length;
   const labels = Array.from({ length: n }, (_, i) => i + 1);
-  const hiddenByLabel = new Map(entropyChart.data.datasets.map(ds => [ds.label, ds.hidden]));
+  const hiddenLabels = captureHiddenLabels(entropyChart);
   entropyChart.data.labels = labels;
   entropyChart.data.datasets = state.variables.map((v, i) => ({
     label: `H(${v.label})`,
@@ -925,7 +947,6 @@ function updateEntropyChart() {
     borderWidth: 1.5,
     pointRadius: 0,
     tension: 0,
-    hidden: hiddenByLabel.get(`H(${v.label})`),
   }));
 
   if (state.variables.length > 1) {
@@ -937,7 +958,6 @@ function updateEntropyChart() {
       borderDash: [6, 3],
       pointRadius: 0,
       tension: 0,
-      hidden: hiddenByLabel.get('H(total)'),
     });
   }
 
@@ -957,6 +977,7 @@ function updateEntropyChart() {
   }
 
   entropyChart.update('none');
+  restoreHiddenLabels(entropyChart, hiddenLabels);
 }
 
 function updateSurprisalChart() {
@@ -1007,9 +1028,9 @@ function updateMomentsChart() {
 
   const n = ownValues(v).length;
   const labels = Array.from({ length: n }, (_, i) => i + 1);
-  const hiddenByLabel = new Map(momentsChart.data.datasets.map(ds => [ds.label, ds.hidden]));
+  const hiddenLabels = captureHiddenLabels(momentsChart);
   momentsChart.data.labels = labels;
-  momentsChart.data.datasets = Array.from({ length: state.maxMomentOrder + 1 }, (_, i) => buildMomentDataset(v, i, hiddenByLabel));
+  momentsChart.data.datasets = Array.from({ length: state.maxMomentOrder + 1 }, (_, i) => buildMomentDataset(v, i));
   const visibleValues = momentsChart.data.datasets.flatMap(ds => ds.data);
 
   momentsChart.options.scales.y.type = state.logScale ? 'logarithmic' : 'linear';
@@ -1036,6 +1057,7 @@ function updateMomentsChart() {
   }
 
   momentsChart.update('none');
+  restoreHiddenLabels(momentsChart, hiddenLabels);
 }
 
 function updateAll() {
