@@ -1355,8 +1355,14 @@ function initControls() {
 
   const speedSlider = document.getElementById('speed-slider');
   const speedVal = document.getElementById('speed-value');
+  const SPEED_MIN = 1;
+  const SPEED_MAX = 1000;
+  const SPEED_SLIDER_MAX = parseInt(speedSlider.max);
+  function sliderPosToSpeed(pos) {
+    return Math.round(SPEED_MIN * Math.pow(SPEED_MAX / SPEED_MIN, pos / SPEED_SLIDER_MAX));
+  }
   speedSlider.addEventListener('input', () => {
-    state.speed = parseInt(speedSlider.value);
+    state.speed = sliderPosToSpeed(parseInt(speedSlider.value));
     speedVal.textContent = state.speed;
     if (state.playing) startTimer();
   });
