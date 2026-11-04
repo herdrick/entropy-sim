@@ -827,15 +827,17 @@ function initCharts() {
   });
 }
 
-function buildMomentDataset(v, order) {
+function buildMomentDataset(v, order, hiddenByLabel) {
+  const label = momentLabel(state.momentType, order);
   return {
-    label: momentLabel(state.momentType, order),
+    label,
     data: v.momentsCache[order][state.momentType],
     borderColor: MOMENT_COLORS[order % MOMENT_COLORS.length],
     borderWidth: 1.5,
     pointRadius: 0,
     pointStyle: 'line',
     tension: 0,
+    hidden: hiddenByLabel && hiddenByLabel.get(label),
   };
 }
 
@@ -914,6 +916,7 @@ function updatePdfOverlay() {
 function updateEntropyChart() {
   const n = state.events.length;
   const labels = Array.from({ length: n }, (_, i) => i + 1);
+  const hiddenByLabel = new Map(entropyChart.data.datasets.map(ds => [ds.label, ds.hidden]));
   entropyChart.data.labels = labels;
   entropyChart.data.datasets = state.variables.map((v, i) => ({
     label: `H(${v.label})`,
@@ -922,6 +925,7 @@ function updateEntropyChart() {
     borderWidth: 1.5,
     pointRadius: 0,
     tension: 0,
+    hidden: hiddenByLabel.get(`H(${v.label})`),
   }));
 
   if (state.variables.length > 1) {
@@ -933,6 +937,7 @@ function updateEntropyChart() {
       borderDash: [6, 3],
       pointRadius: 0,
       tension: 0,
+      hidden: hiddenByLabel.get('H(total)'),
     });
   }
 
@@ -1002,8 +1007,9 @@ function updateMomentsChart() {
 
   const n = ownValues(v).length;
   const labels = Array.from({ length: n }, (_, i) => i + 1);
+  const hiddenByLabel = new Map(momentsChart.data.datasets.map(ds => [ds.label, ds.hidden]));
   momentsChart.data.labels = labels;
-  momentsChart.data.datasets = Array.from({ length: state.maxMomentOrder + 1 }, (_, i) => buildMomentDataset(v, i));
+  momentsChart.data.datasets = Array.from({ length: state.maxMomentOrder + 1 }, (_, i) => buildMomentDataset(v, i, hiddenByLabel));
   const visibleValues = momentsChart.data.datasets.flatMap(ds => ds.data);
 
   momentsChart.options.scales.y.type = state.logScale ? 'logarithmic' : 'linear';
