@@ -131,6 +131,61 @@ function marginalSurprisal(counts, idx) {
   return -Math.log2(smoothed[idx] / total);
 }
 
+// Number of distinct joint cells (bins/alphabet entries, multiplied across
+// every current variable) the joint entropy is smoothed over.
+function totalJointCells() {
+  return state.variables.reduce((acc, v) => acc * (v.kind === 'continuous' ? v.binCfg.totalBins : v.alphabetSize), 1);
+}
+
+function jointCellKey(valuesByVarId) {
+  return state.variables.map(v => {
+    const val = valuesByVarId[v.id];
+    return v.kind === 'continuous' ? getBin(v.binCfg, val) : val;
+  }).join(',');
+}
+
+function hasAllCurrentVars(valuesByVarId) {
+  return state.variables.every(v => v.id in valuesByVarId);
+}
+
+// Entropy of the empirical joint distribution over `counts` (a Map of
+// observed joint-cell key -> count), Laplace/add-1 smoothed over all
+// `totalCells` possible cells, `n` of which have actually been observed.
+function jointEntropyOfCounts(counts, n, totalCells) {
+  const smoothedTotal = n + totalCells;
+  let h = 0;
+  for (const c of counts.values()) {
+    const p = (c + 1) / smoothedTotal;
+    h -= p * Math.log2(p);
+  }
+  const unobservedCells = totalCells - counts.size;
+  if (unobservedCells > 0) {
+    const p = 1 / smoothedTotal;
+    h -= unobservedCells * p * Math.log2(p);
+  }
+  return h;
+}
+
+// Rebuilds the joint entropy history from scratch by replaying state.events —
+// needed whenever the set of variables or any variable's cardinality changes,
+// since past joint-cell assignments are invalidated by those changes.
+function rebuildJointEntropyHistory() {
+  state.jointCounts = new Map();
+  state.jointN = 0;
+  state.jointEntropyHistory = new Array(state.events.length).fill(null);
+  if (state.variables.length === 0) return;
+
+  const totalCells = totalJointCells();
+  for (let i = 0; i < state.events.length; i++) {
+    const ev = state.events[i];
+    if (!hasAllCurrentVars(ev)) continue;
+    const key = jointCellKey(ev);
+    state.jointCounts.set(key, (state.jointCounts.get(key) || 0) + 1);
+    state.jointN++;
+    state.jointEntropyHistory[i] = jointEntropyOfCounts(state.jointCounts, state.jointN, totalCells);
+  }
+}
+
 // =============================================================================
 // Moments Math (continuous variables only — a categorical alphabet is
 // unordered, so statistical moments aren't a meaningful summary of it)
@@ -278,6 +333,9 @@ const state = {
   histoVarA: null,
   histoVarB: null,
   histoCounts2d: [[0]], // [row][col], row = axis B, col = axis A
+  jointCounts: new Map(), // joint cell key -> count, over the current set of variables
+  jointN: 0, // number of events counted into jointCounts so far
+  jointEntropyHistory: [], // one entry per event; null before all current variables existed
   momentVarId: null,
   surprisalVarId: null, // null = sum of all marginals
   maxMomentOrder: 4,
@@ -310,6 +368,7 @@ function resetData() {
     if (v.kind === 'continuous') v.momentsCache = {};
   }
   rebuildHistoGrid();
+  rebuildJointEntropyHistory();
 }
 
 // =============================================================================
@@ -865,10 +924,22 @@ function updateEntropyChart() {
     tension: 0,
   }));
 
+  if (state.variables.length > 1) {
+    entropyChart.data.datasets.push({
+      label: 'H(total)',
+      data: state.jointEntropyHistory,
+      borderColor: COLORS.highlight,
+      borderWidth: 1.5,
+      borderDash: [6, 3],
+      pointRadius: 0,
+      tension: 0,
+    });
+  }
+
   if (n > 0) {
     entropyChart.options.scales.x.min = 1;
     entropyChart.options.scales.x.max = Math.max(n, 10);
-    const allH = state.variables.flatMap(v => v.entropyHistory.filter(x => x !== null));
+    const allH = entropyChart.data.datasets.flatMap(d => d.data.filter(x => x !== null));
     if (allH.length > 0) {
       entropyChart.options.scales.y.min = Math.min(...allH) - 0.3;
       entropyChart.options.scales.y.max = Math.max(...allH) + 0.3;
@@ -1003,6 +1074,15 @@ function addEvent(valuesByVarId) {
   }
 
   state.surprisalHistory.push(jointSurprisal);
+
+  if (state.variables.length > 0 && hasAllCurrentVars(valuesByVarId)) {
+    const key = jointCellKey(valuesByVarId);
+    state.jointCounts.set(key, (state.jointCounts.get(key) || 0) + 1);
+    state.jointN++;
+    state.jointEntropyHistory.push(jointEntropyOfCounts(state.jointCounts, state.jointN, totalJointCells()));
+  } else {
+    state.jointEntropyHistory.push(null);
+  }
 
   const { varA, varB } = getHistoAxisVars();
   if ((varA || varB) && (!varA || varA.id in valuesByVarId) && (!varB || varB.id in valuesByVarId)) {
@@ -1258,6 +1338,7 @@ function buildVariableCard(v) {
       v.counts = new Array(n).fill(0);
       for (const val of values) v.counts[getBin(v.binCfg, val)] += 1;
       rebuildHistoGrid();
+      rebuildJointEntropyHistory();
       updateAll();
     });
     sliderGroup.appendChild(label);
@@ -1288,6 +1369,7 @@ function buildVariableCard(v) {
       v.counts = new Array(v.alphabetSize).fill(0);
       v.entropyHistory = new Array(state.events.length).fill(null);
       rebuildHistoGrid();
+      rebuildJointEntropyHistory();
       renderManualEventInputs();
       updateAll();
     });
@@ -1310,6 +1392,7 @@ function addVariable(kind) {
   renderVariableList();
   refreshVariableDependentUI();
   rebuildHistoGrid();
+  rebuildJointEntropyHistory();
   updateAll();
 }
 
@@ -1322,6 +1405,7 @@ function removeVariable(id) {
   renderVariableList();
   refreshVariableDependentUI();
   rebuildHistoGrid();
+  rebuildJointEntropyHistory();
   updateAll();
 }
 
