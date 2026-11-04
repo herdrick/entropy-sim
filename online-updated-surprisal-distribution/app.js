@@ -242,7 +242,7 @@ const COLORS = {
 };
 
 // Bars (and their edges) render at this opacity, user-adjustable via the opacity slider.
-const DEFAULT_BAR_OPACITY = 0.25;
+const DEFAULT_BAR_OPACITY = 1;
 
 let nextVarId = 1;
 
@@ -340,7 +340,7 @@ function ensureMomentsTrackedUpTo(v, order) {
 // pair all share the exact same grid-building code.
 function axisDescriptor(v) {
   if (!v) {
-    return { size: 1, posFor: () => 0.5, barSize: 0.9, ticks: [], name: '(none)' };
+    return { size: 1, posFor: () => 0, barSize: 0.9, ticks: [], name: '(none)' };
   }
   if (v.kind === 'continuous') {
     const { edges, totalBins, width } = v.binCfg;
@@ -365,15 +365,12 @@ function axisDescriptor(v) {
   };
 }
 
-// The grid-building code always draws its real (ticked, labeled) axis as
-// "A" and its optional depth axis as "B". The two dropdowns let you put your
-// only variable in either slot, so this maps whatever's selected onto that
-// shape without touching state.histoVarA/B — your dropdown picks stay as you
-// left them even when, e.g., slot A is None and slot B holds the one variable.
+// Slot A always maps to the X axis and slot B always maps to the Z (depth)
+// axis — whichever variable (if any) sits in a slot renders on that slot's
+// axis, regardless of whether the other slot is empty. Nothing remaps a
+// variable from one axis to the other based on what's filled in.
 function getHistoAxisVars() {
-  const a = findVariable(state.histoVarA);
-  const b = findVariable(state.histoVarB);
-  return a ? { varA: a, varB: b } : { varA: b, varB: null };
+  return { varA: findVariable(state.histoVarA), varB: findVariable(state.histoVarB) };
 }
 
 function rebuildHistoGrid() {
@@ -382,11 +379,11 @@ function rebuildHistoGrid() {
   const axisB = axisDescriptor(varB);
 
   state.histoCounts2d = Array.from({ length: axisB.size }, () => new Array(axisA.size).fill(0));
-  if (varA) {
+  if (varA || varB) {
     for (const e of state.events) {
-      if (!(varA.id in e)) continue;
+      if (varA && !(varA.id in e)) continue;
       if (varB && !(varB.id in e)) continue;
-      const col = axisA.indexFor(e[varA.id]);
+      const col = varA ? axisA.indexFor(e[varA.id]) : 0;
       const row = varB ? axisB.indexFor(e[varB.id]) : 0;
       state.histoCounts2d[row][col] += 1;
     }
@@ -406,27 +403,10 @@ let initialCameraPosition, initialCameraTarget;
 let cameraMode = 'perspective';
 const ORTHO_VIEW_SIZE = 1.6;
 
-// Tracks whether the histogram is currently showing the flat single-variable
-// view (varB === null) so the camera/UI reset below only fires on an actual
-// 2D/3D transition, not on every unrelated rebuild (e.g. switching which
-// variable fills slot A while B stays set).
-let histoIs2D = null;
-
-// With only one variable selected, drop the depth axis and camera-pair
-// controls entirely and look straight on, like the old single-variable app,
-// instead of showing a single row of 3D bars from an angle.
-function applyHistogramCameraMode(is2D) {
-  if (is2D === histoIs2D) return;
-  histoIs2D = is2D;
-
-  document.getElementById('histogram-container').classList.toggle('is-2d', is2D);
-
-  if (is2D) {
-    setCameraMode('orthographic', new THREE.Vector3(0.5, 0.15, 5), new THREE.Vector3(0.5, 0.15, 0));
-  } else {
-    setCameraMode('perspective', new THREE.Vector3(1.6, 1.1, 1.9), new THREE.Vector3(0.5, 0.15, 0.5));
-  }
-
+// Sets the starting camera framing once, at startup. Changing the histogram
+// dropdowns afterward must never move or reorient the camera.
+function setInitialHistogramCamera() {
+  setCameraMode('perspective', new THREE.Vector3(1.6, 1.1, 1.9), new THREE.Vector3(0.5, 0.15, 0.5));
   initialCameraPosition = camera.position.clone();
   initialCameraTarget = orbitControls.target.clone();
 }
@@ -471,18 +451,16 @@ function buildHistogramGrid() {
   const { varA, varB } = getHistoAxisVars();
   const axisA = axisDescriptor(varA);
   const axisB = axisDescriptor(varB);
-  const is2D = !varB;
-
-  applyHistogramCameraMode(is2D);
 
   const barColor = new THREE.Color(COLORS.barFill);
   const edgeColor = new THREE.Color(COLORS.barEdge);
-  const barDepth = is2D ? 0.001 : axisB.barSize;
+  const barSizeX = varA ? axisA.barSize : 0.001;
+  const barSizeZ = varB ? axisB.barSize : 0.001;
 
   for (let row = 0; row < axisB.size; row++) {
     const rowMeshes = [];
     for (let col = 0; col < axisA.size; col++) {
-      const geo = new THREE.BoxGeometry(axisA.barSize, 1, barDepth);
+      const geo = new THREE.BoxGeometry(barSizeX, 1, barSizeZ);
       const mat = new THREE.MeshBasicMaterial({
         color: barColor.clone(),
         transparent: true,
@@ -551,10 +529,12 @@ function buildHistogramGrid() {
     }
   }
 
-  const xLabel = makeTextSprite(axisA.name);
-  xLabel.position.set(1.22, 0, 0);
-  scene.add(xLabel);
-  gridHelperObjects.push(xLabel);
+  if (varA) {
+    const xLabel = makeTextSprite(axisA.name);
+    xLabel.position.set(1.22, 0, 0);
+    scene.add(xLabel);
+    gridHelperObjects.push(xLabel);
+  }
 
   const yLabel = makeTextSprite('ℙ');
   yLabel.position.set(-0.05, 0.55, -0.05);
@@ -635,10 +615,7 @@ function initHistogram() {
   renderer.setPixelRatio(window.devicePixelRatio);
   container.insertBefore(renderer.domElement, container.firstChild);
 
-  setCameraMode('perspective');
-
-  initialCameraPosition = camera.position.clone();
-  initialCameraTarget = orbitControls.target.clone();
+  setInitialHistogramCamera();
 
   rebuildHistoGrid();
 
@@ -651,6 +628,37 @@ function initHistogram() {
 
   document.getElementById('perspectiveCameraBtn').addEventListener('click', () => setCameraMode('perspective'));
   document.getElementById('orthographicCameraBtn').addEventListener('click', () => setCameraMode('orthographic'));
+
+  const tooltip = document.getElementById('histo-tooltip');
+  const raycaster = new THREE.Raycaster();
+  const pointer = new THREE.Vector2();
+
+  renderer.domElement.addEventListener('pointermove', (e) => {
+    const rect = container.getBoundingClientRect();
+    pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+    raycaster.setFromCamera(pointer, camera);
+    const hit = raycaster.intersectObjects(barMeshes.flat(), false)[0];
+
+    if (!hit) {
+      tooltip.style.display = 'none';
+      return;
+    }
+
+    const { row, col } = hit.object.userData;
+    const flat = state.histoCounts2d.flat();
+    const total = flat.reduce((a, b) => a + b, 0);
+    const prob = total > 0 ? state.histoCounts2d[row][col] / total : 0;
+    tooltip.textContent = prob.toFixed(3);
+    tooltip.style.display = 'block';
+    tooltip.style.left = `${e.clientX - rect.left}px`;
+    tooltip.style.top = `${e.clientY - rect.top}px`;
+  });
+
+  renderer.domElement.addEventListener('pointerleave', () => {
+    tooltip.style.display = 'none';
+  });
 
   const ro = new ResizeObserver(() => {
     const w = container.offsetWidth;
@@ -997,10 +1005,10 @@ function addEvent(valuesByVarId) {
   state.surprisalHistory.push(jointSurprisal);
 
   const { varA, varB } = getHistoAxisVars();
-  if (varA && varA.id in valuesByVarId && (!varB || varB.id in valuesByVarId)) {
+  if ((varA || varB) && (!varA || varA.id in valuesByVarId) && (!varB || varB.id in valuesByVarId)) {
     const axisA = axisDescriptor(varA);
     const axisB = axisDescriptor(varB);
-    const col = axisA.indexFor(valuesByVarId[varA.id]);
+    const col = varA ? axisA.indexFor(valuesByVarId[varA.id]) : 0;
     const row = varB ? axisB.indexFor(valuesByVarId[varB.id]) : 0;
     state.histoCounts2d[row][col] += 1;
   }

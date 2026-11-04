@@ -160,11 +160,6 @@
       cursor: pointer;
     }
 
-    #histogram-container.is-2d #opacity-control,
-    #histogram-container.is-2d .camera-mode-btn {
-      display: none;
-    }
-
     #histo-tooltip {
       position: absolute;
       pointer-events: none;
@@ -544,7 +539,7 @@
             <div id="controls3d">
               <div id="opacity-control" title="Bar transparency">
                 <span>See-through</span>
-                <input type="range" id="bar-opacity-slider" min="0" max="1" step="0.01" value="0.25">
+                <input type="range" id="bar-opacity-slider" min="0" max="1" step="0.01" value="1">
                 <span>Solid</span>
               </div>
               <button id="resetCameraBtn" title="Reset camera">&#x21ba;</button>
