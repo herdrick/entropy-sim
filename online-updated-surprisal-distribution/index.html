@@ -21,8 +21,7 @@
       font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
       background: #1a1a2e;
       color: #ccc;
-      height: 100vh;
-      overflow: hidden;
+      min-height: 100vh;
     }
 
     h1 {
@@ -35,9 +34,9 @@
 
     .app-layout {
       display: grid;
-      grid-template-columns: 1fr 240px;
-      grid-template-rows: 1fr;
-      height: calc(100vh - 40px);
+      grid-template-columns: 1fr;
+      grid-template-rows: auto minmax(600px, 1fr);
+      min-height: calc(100vh - 40px);
       gap: 8px;
       padding: 0 8px 8px;
     }
@@ -48,6 +47,7 @@
       grid-template-rows: 1fr 1fr;
       gap: 8px;
       min-height: 0;
+      order: 2;
     }
 
     .panel {
@@ -304,9 +304,53 @@
       padding: 12px;
       display: flex;
       flex-direction: column;
-      gap: 12px;
-      overflow-y: auto;
+      gap: 10px;
+      order: 1;
     }
+
+    .top-controls-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      gap: 20px;
+    }
+
+    .top-controls-row .btn-row,
+    .top-controls-row .slider-group {
+      width: 200px;
+      flex-shrink: 0;
+    }
+
+    .add-event-group {
+      flex-shrink: 0;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .add-event-group h2 {
+      margin-bottom: 0;
+      flex-shrink: 0;
+    }
+
+    .add-event-group .manual-event-list {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 0;
+    }
+
+    .add-event-group .manual-event-row {
+      width: 160px;
+    }
+
+    .add-event-group #btn-add-event {
+      width: auto;
+      padding: 8px 16px;
+    }
+
 
     .sidebar h2 {
       font-size: 0.9rem;
@@ -406,11 +450,12 @@
     /* Variable cards */
     #variables-list {
       display: flex;
-      flex-direction: column;
+      flex-wrap: wrap;
       gap: 10px;
     }
 
     .variable-panel {
+      width: 220px;
       border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 6px;
       padding: 8px;
@@ -607,33 +652,35 @@
 
     <!-- Controls sidebar -->
     <div class="sidebar">
-      <div class="btn-row">
-        <button id="btn-play">Play</button>
-        <button id="btn-reset">Reset</button>
-      </div>
-      <div class="slider-group">
-        <label>
-          <span id="speed-value">10</span> events/second
-        </label>
-        <input type="range" id="speed-slider" min="0" max="1000" value="333">
+      <div class="top-controls-row">
+        <div class="btn-row">
+          <button id="btn-play">Play</button>
+          <button id="btn-reset">Reset</button>
+        </div>
+        <div class="slider-group">
+          <label>
+            <span id="speed-value">10</span> events/second
+          </label>
+          <input type="range" id="speed-slider" min="0" max="1000" value="333">
+        </div>
+
+        <div class="add-event-group">
+          <h2>Add Event</h2>
+          <div class="manual-event-list" id="manual-event-list"></div>
+          <button id="btn-add-event">Add</button>
+        </div>
       </div>
 
       <label class="hide-checkbox">
         <input type="checkbox" id="hide-distributions" checked> Hide distribution sources
       </label>
 
-      <div id="variables-list"></div>
-
       <div class="add-var-row">
         <button class="add-var-btn" id="btn-add-continuous">+ Continuous var</button>
         <button class="add-var-btn" id="btn-add-categorical">+ Categorical var</button>
       </div>
 
-      <div>
-        <h2>Add Event</h2>
-        <div class="manual-event-list" id="manual-event-list"></div>
-        <button id="btn-add-event">Add</button>
-      </div>
+      <div id="variables-list"></div>
     </div>
   </div>
 
